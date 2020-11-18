@@ -1,4 +1,4 @@
-**系统软件：**[CentOS-7.4](https://pan.baidu.com/s/1HwhZa1xWg8aDipRdQgfkyg)   **mysql软件：**==通过yum命令在线安装==
+**系统软件：**[CentOS-7.4](https://pan.baidu.com/s/1HwhZa1xWg8aDipRdQgfkyg)   **mysql软件：**通过yum命令在线安装
 
 > ##### 1.安装前的准备
 

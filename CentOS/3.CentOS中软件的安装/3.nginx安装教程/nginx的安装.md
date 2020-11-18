@@ -43,7 +43,7 @@
 > **5.nginx的验证**
 
 - 使用`/usr/local/nginx/sbin/nginx`命令或者进入到nginx的sbin目录下使用`./nginx`命令来启动nginx，由于nginx启动成功后不会有什么比较明显的提示，所以如果我们想要确定是否真的成功启动了的话，可以通过`ps -ef|grep nginx`命令来查看是否有nginx相关的进程，有的话就说明启动成功了；
-- 启动成功后直接在浏览器的地址栏中输入"http://ip:80/"或者"http://ip/"进行访问即可，这里的ip是我们CentOS系统的ip，出现如下页面就说明nginx已经安装成功并可以正常使用。
+- 启动成功后直接在浏览器的地址栏中输入 "http://ip:80/" 或者 "http://ip/" 进行访问即可，这里的ip是我们CentOS系统的ip，出现如下页面就说明nginx已经安装成功并可以正常使用。
 
 ![20191113182808](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20201118133708.jpg) 
 

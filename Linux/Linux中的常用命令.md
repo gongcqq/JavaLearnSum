@@ -10,7 +10,7 @@
 
 `sync`		   		   把内存的数据同步到硬盘
 
-![1](https://i.loli.net/2020/05/21/LFzevZB3TGSmPad.gif)
+![1](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20201118142421.gif)
 
 ### 2.用户相关命令
 
@@ -28,7 +28,7 @@
 
 如果不需要这个用户了，可以使用`userdel 用户名`命令删除该用户，如果是使用`userdel -r 用户名`命令的话，表示连该用户的家目录一并进行删除。 
 
-![2.1](https://i.loli.net/2020/05/24/SIHPthMrDa9jc6s.gif)
+![2.1](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20201118142446.gif)
 
 <font color="red">注：</font>在删除用户时，我们一般不会将该用户的家目录一起删除掉。
 
@@ -36,39 +36,13 @@
 
 直接使用`id 用户名`就可以查询用户信息了。
 
-![image](https://i.loli.net/2020/05/25/F3NsecKq9Y1PQIR.png) 
+![image](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20201118142516.png) 
 
 第一个表示用户id号，第二个表示用户所在组的id号，第三个表示组名。
 
 如果用户不存在，就会显示无此用户。
 
-![1](https://i.loli.net/2020/05/25/mM8FDJkpKcnTqiN.png) 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+![1](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20201118142533.png) 
 
 
 

@@ -189,7 +189,7 @@ public class Test {
 }
 ```
 
-**<font color="red">注意：</font>当byte、char、short三种类型的变量互相之间做运算的时候，结果均为int类型。**
+<font color="red">注意：</font>当byte、char、short三种类型的变量互相之间做运算的时候，结果均为int类型。
 
 #### 1.2 强制类型转换
 

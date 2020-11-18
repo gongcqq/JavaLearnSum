@@ -6,7 +6,7 @@
 
 `byte、char、short ---> int ---> long ---> float ---> double`
 
-当byte类型的数据和int类型的数据做运算时：
+###### 当byte类型的数据和int类型的数据做运算时：
 
 **案例一：**
 
@@ -22,6 +22,16 @@ public class Test {
 ```
 
 **案例二：**
+
+```java
+public class Test {
+    public static void main(String[] args) {
+        byte b = 2;
+        int result = b + 3;//这里的数字3默认是int类型，和int类型做运算，返回值类型至少要是int
+        System.out.println("result=" + result);//result=5
+    }
+}
+```
 
 
 

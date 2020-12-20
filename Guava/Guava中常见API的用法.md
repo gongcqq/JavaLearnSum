@@ -162,29 +162,66 @@ public class GuavaTest {
 //这里的意思就是根据“|”把字符串进行分割，分割后的集合的个数最大只能是3个。
 ```
 
+### 4.Files类的常用方法
 
+```java
+package com.gongsl.test;
 
+import com.google.common.base.Charsets;
+import com.google.common.base.Joiner;
+import com.google.common.io.Files;
+import java.io.File;
+import java.io.IOException;
+import java.util.List;
 
+public class GuavaTest {
+    public static void main(String[] args) throws IOException {
+        File input = new File("C:\\Windows\\System32\\drivers\\etc\\hosts");
+        List<String> strings = Files.readLines(input, Charsets.UTF_8);
+        //由于是按行读取，所以这里只有加上"\n"才能保证这个字符串和文本内容完全一致
+        String text = Joiner.on("\n").join(strings);
+        System.out.println(text);
 
+        File output = new File("F:\\logs\\b.txt");
+        Files.write(text.getBytes(), output);
+    }
+}
+```
 
+`以上就是使用Guava中的方法来实现文件的读写操作，感觉要比java自带的要方便很多。`
 
+### 5.BaseEncoding类的常用方法
 
+#### 5.1 base64的编码
 
+```java
+package com.gongsl.test;
 
+import com.google.common.io.BaseEncoding;
 
+public class GuavaTest {
+    public static void main(String[] args){
+        String str = "my name is gongsl";
+        BaseEncoding baseEncoding = BaseEncoding.base64();
+        String test = baseEncoding.encode(str.getBytes());
+        System.out.println(test);//运行结果：bXkgbmFtZSBpcyBnb25nc2w=
+    }
+}
+```
 
+#### 5.2 base64的解码
 
+```java
+package com.gongsl.test;
 
+import com.google.common.io.BaseEncoding;
 
-
-
-
-
-
-
-
-
-
-
-
-
+public class GuavaTest {
+    public static void main(String[] args){
+        String str = "bXkgbmFtZSBpcyBnb25nc2w=";
+        BaseEncoding baseEncoding = BaseEncoding.base64();
+        String test = new String(baseEncoding.decode(str));
+        System.out.println(test);//运行结果：my name is gongsl
+    }
+}
+```

@@ -505,31 +505,22 @@ https://192.168.68.11:30001/
 ###### 2.3.3.1 关闭防火墙
 
 ```shell
-#临时关闭
-systemctl stop firewalld
-
-#永久关闭
-systemctl disable firewalld
+#关闭防火墙
+systemctl stop firewalld && systemctl disable firewalld
 ```
 
 ###### 2.3.3.2 关闭 selinux
 
 ```shell
-#临时关闭
-setenforce 0
-
-#永久关闭
-sed -i 's/enforcing/disabled/' /etc/selinux/config
+#关闭selinux
+setenforce 0 && sed -i '/SELINUX/s/enforcing/disabled/' /etc/selinux/config
 ```
 
 ###### 2.3.3.3 关闭swap
 
 ```shell
-#临时关闭
-swapoff -a
-
-#永久关闭
-sed -ri 's/.*swap.*/#&/' /etc/fstab 
+#关闭swap
+swapoff -a && sed -ri 's/.*swap.*/#&/' /etc/fstab && free –h
 ```
 
 ###### 2.3.3.4 重置iptables
@@ -573,11 +564,6 @@ EOF
 cat > /etc/sysctl.d/kubernetes.conf <<EOF
 net.bridge.bridge-nf-call-iptables=1
 net.bridge.bridge-nf-call-ip6tables=1
-net.ipv4.ip_forward=1
-vm.swappiness=0
-vm.overcommit_memory=1
-vm.panic_on_oom=0
-fs.inotify.max_user_watches=89100
 EOF
 
 #使文件生效

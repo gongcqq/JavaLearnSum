@@ -495,10 +495,9 @@ https://192.168.68.11:30001/
 
 | 角色    | IP            |
 | ------- | ------------- |
-| master1 | 192.168.68.11 |
-| master2 | 192.168.68.12 |
-| node1   | 192.168.68.21 |
-| node2   | 192.168.68.22 |
+| master1 | 192.168.68.20 |
+| master2 | 192.168.68.21 |
+| node    | 192.168.68.22 |
 
 ##### 2.3.3 系统初始化
 
@@ -533,27 +532,23 @@ iptables -F && iptables -X && iptables -F -t nat && iptables -X -t nat && iptabl
 ###### 2.3.3.5 设置主机名
 
 ```shell
-#在192.168.68.11主机上执行以下命令
+#在192.168.68.20主机上执行以下命令
 hostnamectl set-hostname master1
 
-#在192.168.68.12主机上执行以下命令
+#在192.168.68.21主机上执行以下命令
 hostnamectl set-hostname master2
 
-#在192.168.68.21主机上执行以下命令
-hostnamectl set-hostname node1
-
 #在192.168.68.22主机上执行以下命令
-hostnamectl set-hostname node2
+hostnamectl set-hostname node
 ```
 
 ###### 2.3.3.6 配置hosts
 
 ```shell
 cat >> /etc/hosts << EOF
-192.168.68.11 master1
-192.168.68.12 master2
-192.168.68.21 node1
-192.168.68.22 node2
+192.168.68.20 master1
+192.168.68.21 master2
+192.168.68.22 node
 EOF
 ```
 
@@ -606,7 +601,7 @@ EOF
 yum list kubeadm --showduplicates | sort -r
 
 #这里用的是1.18.0
-yum install -y kubeadm-1.18.0 kubelet-1.18.0 kubectl-1.18.0 --disableexcludes=kubernetes
+yum install -y kubeadm-1.21.3 kubelet-1.21.3 kubectl-1.21.3
 
 #让kubelet开机启动
 systemctl enable kubelet
@@ -1852,6 +1847,999 @@ kubectl apply -f kube-flannel.yml
 ```
 
 **==注意==：由于网络部署失败，导致二进制安装失败。**
+
+#### 2.3 kubeadm方式搭建k8s集群(多master)
+
+##### 2.3.1 安装要求
+
+- 一台或多台机器，操作系统为CentOS7；
+
+- 硬件配置：2GB或更多RAM，2个CPU或更多CPU；
+
+- 集群中所有机器之间网络互通；
+
+- 可以访问外网，因为需要联网拉取镜像；
+
+- 需要禁止swap分区。
+
+##### 2.3.2 主机规划
+
+| 角色   | 主机名 | IP            |
+| ------ | ------ | ------------- |
+| master | k8s-01 | 192.168.68.20 |
+| master | k8s-02 | 192.168.68.21 |
+| node   | k8s-03 | 192.168.68.22 |
+
+##### 2.3.3 系统初始化
+
+如无特殊说明，则该部分涉及的命令均需在所有节点执行。
+
+###### 2.3.3.1 修改主机名
+
+```shell
+#在192.168.68.20主机执行以下命令
+hostnamectl set-hostname k8s-01
+
+#在192.168.68.21主机执行以下命令
+hostnamectl set-hostname k8s-02
+
+#在192.168.68.22主机执行以下命令
+hostnamectl set-hostname k8s-03
+```
+
+###### 2.3.3.2 关闭防火墙、selinux、swap、重置iptables
+
+```shell
+# 关闭selinux
+setenforce 0 && sed -i '/SELINUX/s/enforcing/disabled/' /etc/selinux/config
+
+# 关闭防火墙
+systemctl stop firewalld && systemctl disable firewalld
+
+# 设置iptables规则
+iptables -F && iptables -X && iptables -F -t nat && iptables -X -t nat && iptables -P FORWARD ACCEPT
+
+# 关闭swap
+swapoff -a && sed -ri 's/.*swap.*/#&/' /etc/fstab && free –h
+```
+
+###### 2.3.3.3 k8s参数设置
+
+```shell
+# 制作配置文件
+cat > /etc/sysctl.d/k8s.conf << EOF
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+EOF
+
+#生效命令
+sysctl --system
+```
+
+###### 2.3.3.4 配置hosts
+
+```shell
+cat >> /etc/hosts << EOF
+192.168.68.20 k8s-01
+192.168.68.21 k8s-02
+192.168.68.22 k8s-03
+EOF
+```
+
+###### 2.3.3.5 设置yum源
+
+```shell
+#安装yum-utils
+yum install -y yum-utils
+
+#设置docker的yum源为阿里云
+yum-config-manager --add-repo http://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
+
+#设置k8s的yum源为阿里云
+cat <<EOF > /etc/yum.repos.d/kubernetes.repo
+[kubernetes]
+name=Kubernetes
+baseurl=http://mirrors.aliyun.com/kubernetes/yum/repos/kubernetes-el7-x86_64
+enabled=1
+gpgcheck=0
+repo_gpgcheck=0
+gpgkey=http://mirrors.aliyun.com/kubernetes/yum/doc/yum-key.gpg
+       http://mirrors.aliyun.com/kubernetes/yum/doc/rpm-package-key.gpg
+EOF
+```
+
+###### 2.3.3.6 安装docker
+
+```shell
+#如果之前安装过docker的话，可以先卸载旧版的docker
+yum remove -y docker-ce docker-ce-cli containerd.io
+
+#删除镜像、容器、配置文件等内容
+rm -rf /var/lib/docker
+
+#安装最新版的docker
+yum install -y docker-ce docker-ce-cli containerd.io
+
+#启动docker并设置为开机启动
+systemctl start docker && systemctl enable docker
+
+#查看docker的运行状态
+systemctl status docker
+
+#查看docker的版本信息，我这边的版本是20.10.7
+docker -v
+
+#配置镜像加速
+cat >> /etc/docker/daemon.json << EOF
+{
+  "registry-mirrors":["http://hub-mirror.c.163.com","https://docker.mirrors.ustc.edu.cn"]
+}
+EOF
+
+#重新加载配置文件
+systemctl daemon-reload
+
+#重新启动docker
+systemctl restart docker
+```
+
+##### 2.3.4 安装必要工具(所有节点)
+
+###### 2.3.4.1 工具说明
+
+- **kubeadm:** 部署集群用的命令；
+- **kubelet:** 在集群中每台机器上都要运行的组件，负责管理pod、容器的生命周期；
+- **kubectl:** 集群管理工具(这个可以只在master节点上安装)。
+
+###### 2.3.4.2 安装步骤
+
+```shell
+#找到要安装的版本号
+yum list kubeadm --showduplicates | sort -r
+
+#这里用的是1.21.3
+yum install -y kubeadm-1.21.3 kubelet-1.21.3 kubectl-1.21.3
+
+#让kubelet开机启动
+systemctl enable kubelet
+```
+
+##### 2.3.5 配置免密登录
+
+为了节点之间传文件的方便，我这边配置一下免密登录，可以在任意节点进行配置，我这边就在k8s-01节点上配置了。
+
+```shell
+# 1.生成keygen(直接执行ssh-keygen，然后一路回车下去即可)
+ssh-keygen
+
+# 2.查看并复制生成的pubkey
+cat /root/.ssh/id_rsa.pub
+
+# 3.分别登陆到各个节点上，将pubkey写入到"/root/.ssh/authorized_keys"中
+mkdir -p /root/.ssh && echo "<上一步骤复制的pubkey>" >> /root/.ssh/authorized_keys
+
+# 4.在k8s-01节点上使用如下命令看看是否可以免密登录到集群中的其他主机
+ssh root@<集群中其他主机的IP>
+```
+
+##### 2.3.6 准备配置文件(任意节点)
+
+###### 2.3.6.1 下载配置文件
+
+```shell
+#下载压缩包(我这边下载到k8s-01主机的"/root"路径下)
+wget https://gitee.com/gongcqq/k8s-install/attach_files/788573/download/kubernetes-init-kubeadm-1.21.3.tar.gz
+
+#解压压缩包
+tar -zxvf kubernetes-init-kubeadm-1.21.3.tar.gz
+
+#目录结构如下：
+kubernetes-init-kubeadm-1.21.3
+├── addons
+│   └── calico.yaml
+├── configs
+│   ├── keepalived-backup.conf
+│   ├── keepalived-master.conf
+│   └── kubeadm-config.yaml
+├── global-config.properties
+├── init.sh
+└── scripts
+    └── check-apiserver.sh
+```
+
+###### 2.3.6.2 目录结构及文件说明
+
+- **addons**
+
+  kubernetes的插件，比如calico。
+
+- **configs**
+
+  包含了部署集群过程中用到的各种配置文件。
+
+- **scripts**
+
+  包含部署集群过程中用到的脚本，如keepalive检查脚本。
+
+- **global-configs.properties**
+
+  全局配置，包含各种易变的配置内容。
+
+- **init.sh**
+
+  初始化脚本，配置好global-config.properties之后，可以使用该脚本自动生成所有的配置文件。
+
+###### 2.3.6.3 生成需要的配置
+
+```shell
+#进入到下载的配置的目录中
+cd kubernetes-init-kubeadm-1.21.3
+
+#编辑配置属性(根据文件中的注释自定义修改)，如无大的差别，也可以不修改
+vim global-config.properties
+
+#生成配置文件(确保执行过程没有异常信息)
+./init.sh
+
+#生成的配置文件的目录结构如下：
+target/
+├── addons
+│   └── calico.yaml
+├── configs
+│   ├── keepalived-backup.conf
+│   ├── keepalived-master.conf
+│   └── kubeadm-config.yaml
+└── scripts
+    └── check-apiserver.sh
+
+
+#如果不想使用上面提供的calico网络插件的yaml文件，也可以通过下面的命令直接从官网下载
+curl https://docs.projectcalico.org/manifests/calico.yaml -O
+```
+
+##### 2.3.7 部署keepalived-apiserver高可用
+
+###### 2.3.7.1 安装keepalived
+
+```shell
+#在两个master节点上安装keepalived(一主一备)
+yum install -y keepalived
+```
+
+###### 2.3.7.2 创建keepalived配置文件
+
+```shell
+#在两个master主机上执行以下命令
+mkdir -p /etc/keepalived
+
+#分发配置文件，由于配置文件我放到k8s-01主机上了，所以k8s-01主机执行以下操作
+cp /root/kubernetes-init-kubeadm-1.21.3/target/configs/keepalived-master.conf /etc/keepalived/keepalived.conf
+
+#分发配置文件，将k8s-01主机上的配置文件分发到k8s-02主机上(在k8s-01主机上操作)
+scp /root/kubernetes-init-kubeadm-1.21.3/target/configs/keepalived-backup.conf root@192.168.68.21:/etc/keepalived/keepalived.conf 
+
+#分发监测脚本，在k8s-01主机上依次执行下面两条命令
+cp /root/kubernetes-init-kubeadm-1.21.3/target/scripts/check-apiserver.sh /etc/keepalived/
+
+scp /root/kubernetes-init-kubeadm-1.21.3/target/scripts/check-apiserver.sh root@192.168.68.21:/etc/keepalived/
+```
+
+###### 2.3.7.3 启动keepalived
+
+```shell
+#分别在k8s-01主机和k8s-02主机上执行以下命令
+systemctl enable keepalived && systemctl start keepalived
+
+#检查状态
+systemctl status keepalived
+
+#查看日志
+journalctl -f -u keepalived
+```
+
+##### 2.3.8 部署第一个master节点
+
+我这边是把k8s-01节点作为第一个master节点的，所以这部分涉及到的命令都是在k8s-01节点上执行的。
+
+```shell
+#在k8s-01主机上进入配置文件目录
+cd /root/kubernetes-init-kubeadm-1.21.3/target/configs
+
+#使用如下命令生成一个符合新版本使用的配置文件
+kubeadm config migrate --old-config kubeadm-config.yaml --new-config kubeadm-config-new.yaml
+
+#在执行"kubeadm init"命令前，依次执行下面三条命令下载coredns镜像，因为配置的阿里云仓库没有这个镜像
+docker pull coredns/coredns:1.8.0
+docker tag coredns/coredns:1.8.0 registry.aliyuncs.com/google_containers/coredns:v1.8.0
+docker rmi -f coredns/coredns:1.8.0
+
+#执行kubeadm初始化系统(注意保存最后打印的加入集群的命令)
+kubeadm init --config=kubeadm-config-new.yaml --upload-certs
+```
+
+![image-20210801154607993](D:\Program Files (x86)\Typora\images\k8s安装失败文档\image-20210801154607993.png) 
+
+```shell
+#依次执行以上截图中的命令
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+#我们可以测试一下kubectl
+kubectl get pod -A -o wide
+
+# *****这里备份一下上面执行kubeadm init时打印的kubeadm join命令，因为后面会用到*****
+#这个是加入其它master节点的时候需要执行的命令
+kubeadm join 192.168.8.188:6443 --token 505059.ugel7oqk5q3wafjq \
+        --discovery-token-ca-cert-hash sha256:643c14912d50af02a1422cadd85e530c4274603d3b2352d9f77c0f0332955a1d \
+        --control-plane --certificate-key 30f380d684adf37a05018764095b8965dff631cad9d1e4725ce8674cdb38e0e5
+
+#这个是加入worker节点的时候需要执行的命令
+kubeadm join 192.168.8.188:6443 --token 505059.ugel7oqk5q3wafjq \
+        --discovery-token-ca-cert-hash sha256:643c14912d50af02a1422cadd85e530c4274603d3b2352d9f77c0f0332955a1d
+```
+
+##### 2.3.9 部署网络插件-calico
+
+```shell
+#在k8s-01节点上创建工作目录
+mkdir -p /etc/kubernetes/addons
+
+#拷贝文件到工作目录下
+cp /root/kubernetes-init-kubeadm-1.21.3/target/addons/calico.yaml /etc/kubernetes/addons/
+
+#部署calico
+kubectl apply -f /etc/kubernetes/addons/calico.yaml
+```
+
+等待一段时间后，我们可以使用`kubectl get node`命令查看节点状态，也可以使用`kubectl get pod -A -o wide`命令查看所有Pod的运行状态。
+
+![image-20210801161505870](D:\Program Files (x86)\Typora\images\k8s安装失败文档\image-20210801161505870.png) 
+
+##### 2.3.10 部署第二个master节点
+
+首先我们需要把第一个master节点上的一些配置拷贝到第二个master节点上：
+
+```shell
+#在k8s-01节点上依次执行如下命令，将所需的配置拷贝到k8s-02节点上对应的目录下
+scp /etc/kubernetes/admin.conf root@192.168.68.21:/etc/kubernetes/
+scp -r /etc/kubernetes/pki/ root@192.168.68.21:/etc/kubernetes/
+scp /root/kubernetes-init-kubeadm-1.21.3/target/configs/kubeadm-config.yaml root@192.168.68.21:/root
+```
+
+上一步我们拷贝的文件中有些是不需要的，为了避免误导，这里就把不需要的文件进行删除：
+
+```shell
+#在k8s-02节点上依次执行以下删除命令
+rm -f /etc/kubernetes/pki/{apiserver*,front-proxy-client.*}
+rm -f /etc/kubernetes/pki/etcd/{healthcheck-client.*,peer.*,server.*}
+```
+
+#### 2.4 二进制方式搭建k8s集群(单master)
+
+##### 2.4.1 安装要求
+
+- 一台或多台机器，操作系统为CentOS7；
+
+- 硬件配置：2GB或更多RAM，2个CPU或更多CPU；
+
+- 集群中所有机器之间网络互通；
+
+- 可以访问外网，因为需要联网拉取镜像；
+
+- 需要禁止swap分区。
+
+##### 2.4.2 主机规划
+
+| 角色   | 主机名 | IP            |
+| ------ | ------ | ------------- |
+| master | k8s-01 | 192.168.68.20 |
+| node   | k8s-02 | 192.168.68.21 |
+| node   | k8s-03 | 192.168.68.22 |
+
+##### 2.4.3 系统初始化
+
+如无特殊说明，则该部分涉及的命令均需在所有节点执行。
+
+###### 2.4.3.1 修改主机名
+
+```shell
+#在192.168.68.20主机执行以下命令
+hostnamectl set-hostname k8s-01
+
+#在192.168.68.21主机执行以下命令
+hostnamectl set-hostname k8s-02
+
+#在192.168.68.22主机执行以下命令
+hostnamectl set-hostname k8s-03
+```
+
+###### 2.4.3.2 关闭防火墙、selinux、swap、重置iptables
+
+```shell
+# 关闭selinux
+setenforce 0 && sed -i '/SELINUX/s/enforcing/disabled/' /etc/selinux/config
+
+# 关闭防火墙
+systemctl stop firewalld && systemctl disable firewalld
+
+# 设置iptables规则
+iptables -F && iptables -X && iptables -F -t nat && iptables -X -t nat && iptables -P FORWARD ACCEPT
+
+# 关闭swap
+swapoff -a && sed -ri 's/.*swap.*/#&/' /etc/fstab && free –h
+```
+
+###### 2.4.3.3 k8s参数设置
+
+```shell
+# 制作配置文件
+cat > /etc/sysctl.d/k8s.conf << EOF
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+EOF
+
+#生效命令
+sysctl --system
+```
+
+###### 2.4.3.4 配置hosts
+
+```shell
+cat >> /etc/hosts << EOF
+192.168.68.20 k8s-01
+192.168.68.21 k8s-02
+192.168.68.22 k8s-03
+EOF
+```
+
+###### 2.4.3.5 设置yum源
+
+```shell
+#安装yum-utils
+yum install -y yum-utils
+
+#设置docker的yum源为阿里云
+yum-config-manager --add-repo http://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
+```
+
+###### 2.4.3.6 安装docker
+
+```shell
+#如果之前安装过docker的话，可以先卸载旧版的docker
+yum remove -y docker-ce docker-ce-cli containerd.io
+
+#卸载后，删除镜像、容器、配置文件等内容
+rm -rf /var/lib/docker
+
+#安装最新版的docker
+yum install -y docker-ce docker-ce-cli containerd.io
+
+#启动docker并设置为开机启动
+systemctl start docker && systemctl enable docker
+
+#查看docker的运行状态
+systemctl status docker
+
+#查看docker的版本信息，我这边的版本是20.10.7
+docker -v
+
+#配置镜像加速
+cat >> /etc/docker/daemon.json << EOF
+{
+  "registry-mirrors":["http://hub-mirror.c.163.com","https://docker.mirrors.ustc.edu.cn"]
+}
+EOF
+
+#重新加载配置文件
+systemctl daemon-reload
+
+#重新启动docker
+systemctl restart docker
+```
+
+##### 2.4.4 配置免密登录
+
+为了节点之间传文件的方便，我这边配置一下免密登录，可以在任意节点进行配置，我这边就在k8s-01节点上配置了。
+
+```shell
+# 1.生成keygen(直接执行ssh-keygen，然后一路回车下去即可)
+ssh-keygen
+
+# 2.查看并复制生成的pubkey
+cat /root/.ssh/id_rsa.pub
+
+# 3.分别登陆到各个节点上，将pubkey写入到"/root/.ssh/authorized_keys"中
+mkdir -p /root/.ssh && echo "<上一步骤复制的pubkey>" >> /root/.ssh/authorized_keys
+
+# 4.在k8s-01节点上使用如下命令看看是否可以免密登录到集群中的其他主机
+ssh root@<集群中其他主机的IP>
+```
+
+##### 2.4.5 部署etcd集群
+
+etcd是一个分布式键值存储系统，Kubernetes使用etcd进行数据存储，所以先准备一个etcd数据库。为解决etcd单点故障，应采用集群方式部署。这里使用3台机器组建集群，可容忍1台机器故障。当然，也可以使用5台机器组建集群，可容忍2台机器故障。
+
+| 节点名称 | IP            |
+| -------- | ------------- |
+| etcd-1   | 192.168.68.20 |
+| etcd-2   | 192.168.68.21 |
+| etcd-3   | 192.168.68.22 |
+
+> **注意**：这里为了节省机器，就与K8s节点机器复用了。也可以独立于k8s集群之外用新的主机部署，只要apiserver能连接到就行。
+
+###### 2.4.5.1 准备cfssl证书生成工具
+
+cfssl是一个开源的证书管理工具，使用json文件生成证书，相比openssl更方便使用。可以找任意一台机器操作，这里在k8s-01主机(192.168.68.20)上操作。下面生成证书以及部署集群的步骤都是在k8s-01主机上操作的，后面会再把相关文件拷贝到其他主机上。
+
+```shell
+#下载证书
+wget https://pkg.cfssl.org/R1.2/cfssl_linux-amd64 -O /usr/local/bin/cfssl
+wget https://pkg.cfssl.org/R1.2/cfssljson_linux-amd64 -O /usr/local/bin/cfssljson
+
+#修改为可执行权限
+chmod +x /usr/local/bin/cfssl /usr/local/bin/cfssljson
+
+#验证
+cfssl version
+```
+
+###### 2.4.5.2 生成etcd证书
+
+1. 自签证书颁发机构(CA)
+
+```shell
+#创建并进入工作目录
+mkdir -p ~/TLS/{etcd,k8s} && cd ~/TLS/etcd
+
+#自签CA
+cat > ca-config.json<< EOF
+{
+    "signing": {
+        "default": {
+            "expiry": "876000h"
+        },
+        "profiles": {
+            "www": {
+                "expiry": "876000h",
+                "usages": [
+                    "signing",
+                    "key encipherment",
+                    "server auth",
+                    "client auth"
+                ]
+            }
+        }
+    }
+}
+EOF
+
+cat > ca-csr.json<< EOF
+{
+    "CN": "etcd CA",
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [
+        {
+            "C": "CN",
+            "L": "Beijing",
+            "ST": "Beijing"
+        }
+    ]
+}
+EOF
+
+#生成证书
+cfssl gencert -initca ca-csr.json | cfssljson -bare ca -
+```
+
+2. 使用自签CA签发etcd HTTPS证书
+
+```shell
+#创建证书申请文件
+IPS=(192.168.68.20 192.168.68.21 192.168.68.22)
+cat > server-csr.json<< EOF
+{
+    "CN": "etcd",
+    "hosts": [
+        "${IPS[0]}",
+        "${IPS[1]}",
+        "${IPS[2]}"
+    ],
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [
+        {
+            "C": "CN",
+            "L": "BeiJing",
+            "ST": "BeiJing"
+        }
+    ]
+}
+EOF
+
+#生成证书
+cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=www server-csr.json | cfssljson -bare server
+```
+
+> **注意**：上述命令的hosts字段中的IP为所有etcd节点的集群内部通信IP，一个都不能少，为了方便后期扩容，也可以多写几个预留的IP。
+
+###### 2.4.5.3 部署etcd集群
+
+1. 创建工作目录并解压二进制包
+
+```shell
+#创建工作目录
+mkdir -p /opt/etcd/{bin,cfg,ssl}
+
+#从Github下载二进制文件
+wget https://github.com/etcd-io/etcd/releases/download/v3.5.0/etcd-v3.5.0-linux-amd64.tar.gz
+
+#解压文件
+tar -zxvf etcd-v3.5.0-linux-amd64.tar.gz
+
+#移动相应文件到对应的工作目录下
+mv etcd-v3.5.0-linux-amd64/{etcd,etcdctl} /opt/etcd/bin/
+```
+
+2. 创建etcd配置文件
+
+```shell
+#依次执行以下命令
+ETCD_NAMES=(k8s-01 k8s-02 k8s-03)
+ETCD_IPS=(192.168.68.20 192.168.68.21 192.168.68.22)
+
+for ((i=0;i<${#ETCD_NAMES[@]};i++)); do
+cat > /root/TLS/etcd/etcd-${ETCD_NAMES[$i]}.conf << EOF
+#[Member]
+ETCD_NAME="etcd-${ETCD_NAMES[$i]}"
+ETCD_DATA_DIR="/var/lib/etcd/default.etcd"
+ETCD_LISTEN_PEER_URLS="https://${ETCD_IPS[$i]}:2380"
+ETCD_LISTEN_CLIENT_URLS="https://${ETCD_IPS[$i]}:2379"
+#[Clustering]
+ETCD_INITIAL_ADVERTISE_PEER_URLS="https://${ETCD_IPS[$i]}:2380"
+ETCD_ADVERTISE_CLIENT_URLS="https://${ETCD_IPS[$i]}:2379"
+ETCD_INITIAL_CLUSTER="etcd-${ETCD_NAMES[0]}=https://${ETCD_IPS[0]}:2380,etcd-${ETCD_NAMES[1]}=https://${ETCD_IPS[1]}:2380,etcd-${ETCD_NAMES[2]}=https://${ETCD_IPS[2]}:2380"
+ETCD_INITIAL_CLUSTER_TOKEN="etcd-cluster"
+ETCD_INITIAL_CLUSTER_STATE="new"
+EOF
+done
+
+#将本机的etcd的配置文件拷贝到指定目录
+cp /root/TLS/etcd/etcd-k8s-01.conf /opt/etcd/cfg/etcd.conf
+```
+
+- `ETCD_NAME`：节点名称，集群中唯一；
+- `ETCD_DATA_DIR`：数据目录；
+- `ETCD_LISTEN_PEER_URLS`：集群通信监听地址；
+- `ETCD_LISTEN_CLIENT_URLS`：客户端访问监听地址；
+- `ETCD_INITIAL_ADVERTISE_PEER_URLS`：集群通告地址；
+- `ETCD_ADVERTISE_CLIENT_URLS`：客户端通告地址；
+- `ETCD_INITIAL_CLUSTER`：集群节点地址；
+- `ETCD_INITIAL_CLUSTER_TOKEN`：集群Token；
+- `ETCD_INITIAL_CLUSTER_STATE`：加入集群的当前状态，new是新集群，existing表示加入已有集群。
+
+3. 拷贝前面生成的证书
+
+```shell
+cp ~/TLS/etcd/ca*pem ~/TLS/etcd/server*pem /opt/etcd/ssl/
+```
+
+4. systemd管理etcd
+
+```shell
+cat > /usr/lib/systemd/system/etcd.service << EOF
+[Unit]
+Description=Etcd Server
+After=network.target
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=notify
+EnvironmentFile=/opt/etcd/cfg/etcd.conf
+ExecStart=/opt/etcd/bin/etcd \
+--cert-file=/opt/etcd/ssl/server.pem \
+--key-file=/opt/etcd/ssl/server-key.pem \
+--peer-cert-file=/opt/etcd/ssl/server.pem \
+--peer-key-file=/opt/etcd/ssl/server-key.pem \
+--trusted-ca-file=/opt/etcd/ssl/ca.pem \
+--peer-trusted-ca-file=/opt/etcd/ssl/ca.pem \
+--logger=zap
+Restart=on-failure
+LimitNOFILE=65536
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+5. 将k8s-01主机上生成的文件拷贝到其余主机上
+
+```shell
+#复制文件或目录到192.168.68.21主机，复制目录要加-r参数，复制文件的话不用加
+scp -r /opt/etcd/ root@192.168.68.21:/opt/
+scp /root/TLS/etcd/etcd-k8s-02.conf root@192.168.68.21:/opt/etcd/cfg/etcd.conf
+scp /usr/lib/systemd/system/etcd.service root@192.168.68.21:/usr/lib/systemd/system/
+
+#复制文件或目录到192.168.68.22主机
+scp -r /opt/etcd/ root@192.168.68.22:/opt/
+scp /root/TLS/etcd/etcd-k8s-03.conf root@192.168.68.22:/opt/etcd/cfg/etcd.conf
+scp /usr/lib/systemd/system/etcd.service root@192.168.68.22:/usr/lib/systemd/system/
+```
+
+6. 启动etcd并设置开机启动
+
+```shell
+#重载daemon
+systemctl daemon-reload
+
+#启动etcd并设置开机启动
+systemctl start etcd && systemctl enable etcd
+
+#查看运行状态
+systemctl status etcd
+```
+
+> **注意**：需要在集群中的所有主机上都执行以上三条命令。而且在启动etcd的时候，最好是先启动worker node上的etcd，最后再启动master上的etcd。还是启动不起来的话，电脑就切换下网络或者重启虚拟机。
+
+7. 查看集群状态
+
+```shell
+#在k8s-01主机上执行如下命令
+ETCDCTL_API=3 /opt/etcd/bin/etcdctl \
+--cacert=/opt/etcd/ssl/ca.pem \
+--cert=/opt/etcd/ssl/server.pem \
+--key=/opt/etcd/ssl/server-key.pem \
+--endpoints="https://${ETCD_IPS[0]}:2379,https://${ETCD_IPS[1]}:2379,https://${ETCD_IPS[2]}:2379" endpoint health
+```
+
+- 如果输出如下信息，说明集群中的节点都是健康的：
+
+  ![image-20210801201555501](D:\Program Files (x86)\Typora\images\k8s安装失败文档\image-20210801201555501.png)  
+
+- 假设将192.168.68.21主机上的etcd停掉，然后再执行以上命令，会打印如下信息：
+
+  ![image-20210801201900831](D:\Program Files (x86)\Typora\images\k8s安装失败文档\image-20210801201900831.png)  
+
+> 如果我们想要查看etcd的日志的话，可以使用`journalctl -u etcd`命令，也可以使用`more /var/log/messages`命令。
+
+##### 2.4.6 部署Master Node
+
+###### 2.4.6.1 生成kube-apiserver证书
+
+1. 自签证书颁发机构(CA)
+
+```shell
+#在k8s-01节点创建并进入工作目录
+mkdir -p ~/TLS/k8s/apiserver && cd ~/TLS/k8s/apiserver
+
+#自签CA
+cat > ca-config.json<< EOF
+{
+    "signing": {
+        "default": {
+            "expiry": "876000h"
+        },
+        "profiles": {
+            "kubernetes": {
+                "expiry": "876000h",
+                "usages": [
+                    "signing",
+                    "key encipherment",
+                    "server auth",
+                    "client auth"
+                ]
+            }
+        }
+    }
+}
+EOF
+
+cat > ca-csr.json<< EOF
+{
+    "CN": "kubernetes",
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [
+        {
+            "C": "CN",
+            "L": "Beijing",
+            "ST": "Beijing",
+            "O": "k8s",
+            "OU": "System"
+        }
+    ]
+}
+EOF
+
+#生成证书
+cfssl gencert -initca ca-csr.json | cfssljson -bare ca -
+```
+
+2. 使用自签CA签发kube-apiserver HTTPS证书
+
+```shell
+#创建证书申请文件，下面的主机地址要改成自己的主机地址
+cat > server-csr.json<< EOF
+{
+    "CN": "kubernetes",
+    "hosts": [
+        "10.0.0.1",
+        "127.0.0.1",
+        "${IPS[0]}",
+        "${IPS[1]}",
+        "${IPS[2]}",
+        "kubernetes",
+        "kubernetes.default",
+        "kubernetes.default.svc",
+        "kubernetes.default.svc.cluster",
+        "kubernetes.default.svc.cluster.local"
+    ],
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [
+        {
+            "C": "CN",
+            "L": "BeiJing",
+            "ST": "BeiJing",
+            "O": "k8s",
+            "OU": "System"
+        }
+    ]
+}
+EOF
+
+#生成证书
+cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=kubernetes server-csr.json | cfssljson -bare server
+```
+
+###### 2.4.6.2 下载并解压二进制包
+
+我们可以通过如下命令下载二进制包：
+
+```shell
+#在k8s-01主机上下载二进制包
+wget https://dl.k8s.io/v1.21.3/kubernetes-server-linux-amd64.tar.gz  /root/TLS/k8s 
+```
+
+或者也可以通过[github-kubernetes](https://github.com/kubernetes/kubernetes/tree/master/CHANGELOG)下载对应版本的二进制包，直接点击下图位置的链接即可进行下载。
+
+![image-20210801203640174](D:\Program Files (x86)\Typora\images\k8s安装失败文档\image-20210801203640174.png) 
+
+```shell
+#创建工作目录
+mkdir -p /opt/kubernetes/{bin,cfg,ssl,logs}
+
+#解压
+cd /root/TLS/k8s && tar -zxvf kubernetes-server-linux-amd64.tar.gz
+
+#解压后，通过如下命令进入到解压后的目录的bin路径下
+cd kubernetes/server/bin
+
+#然后执行如下的拷贝命令
+cp kube-apiserver kube-scheduler kube-controller-manager /opt/kubernetes/bin && cp kubectl /usr/bin
+```
+
+###### 2.4.6.3 部署kube-apiserver
+
+1. 创建配置文件
+
+**说明**：下面的两个`\\`第一个是转义符，第二个是换行符，使用转义符是为了使用EOF时保留换行符。
+
+```shell
+cat > /opt/kubernetes/cfg/kube-apiserver.conf << EOF
+KUBE_APISERVER_OPTS="--logtostderr=false \\
+--v=2 \\
+--log-dir=/opt/kubernetes/logs \\
+--etcd-servers=https://${IPS[0]}:2379,https://${IPS[1]}:2379,https://${IPS[2]}:2379 \\
+--bind-address=${IPS[0]} \\
+--secure-port=6443 \\
+--advertise-address=${IPS[0]} \\
+--allow-privileged=true \\
+--service-cluster-ip-range=10.0.0.0/24 \\
+--enable-admission-plugins=NamespaceLifecycle,LimitRanger,ServiceAccount,ResourceQuota,NodeRestriction \\
+--authorization-mode=RBAC,Node \\
+--enable-bootstrap-token-auth=true \\
+--token-auth-file=/opt/kubernetes/cfg/token.csv \\
+--service-node-port-range=30000-32767 \\
+--kubelet-client-certificate=/opt/kubernetes/ssl/server.pem \\
+--kubelet-client-key=/opt/kubernetes/ssl/server-key.pem \\
+--tls-cert-file=/opt/kubernetes/ssl/server.pem \\
+--tls-private-key-file=/opt/kubernetes/ssl/server-key.pem \\
+--client-ca-file=/opt/kubernetes/ssl/ca.pem \\
+--service-account-key-file=/opt/kubernetes/ssl/ca-key.pem \\
+--etcd-cafile=/opt/etcd/ssl/ca.pem \\
+--etcd-certfile=/opt/etcd/ssl/server.pem \\
+--etcd-keyfile=/opt/etcd/ssl/server-key.pem \\
+--audit-log-maxage=30 \\
+--audit-log-maxbackup=3 \\
+--audit-log-maxsize=100 \\
+--audit-log-path=/opt/kubernetes/logs/k8s-audit.log"
+EOF
+```
+
+- `logtostderr`：启用日志；
+- `v`：日志等级；
+- `log-dir`：日志目录；
+- `etcd-servers`：etcd集群地址；
+- `bind-address`：监听地址；
+- `secure-port`：https安全端口；
+- `advertise-address`：集群通告地址；
+- `allow-privileged`：启用授权；
+- `service-cluster-ip-range`：Service虚拟IP地址段；
+- `enable-admission-plugins`：准入控制模块；
+- `authorization-mode`：认证授权，启用RBAC授权和节点自管理；
+- `enable-bootstrap-token-auth`：启用TLS bootstrap机制；
+- `token-auth-file`：bootstrap token文件；
+- `service-node-port-range`：Service nodeport类型默认分配端口范围；
+- `kubelet-client-xxx`：apiserver访问kubelet客户端证书；
+- `tls-xxx-file`：apiserver https证书；
+- `etcd-xxxfile`：连接Etcd集群证书；
+- `audit-log-xxx`：审计日志。
+
+2. 关于TLS Bootstrapping机制
+
+上面创建的kube-apiserver.conf文件中包含了一个TLS bootstrap机制，这里大致介绍一下它。
+
+==TLS Bootstraping==：Master节点上的apiserver在启用TLS认证之后，Node节点上的kubelet和kube-proxy要与kube-apiserver进行通信，必须使用CA签发的有效证书才可以，当Node节点很多时，这种客户端证书颁发需要大量工作，同样也会增加集群扩展复杂度。为了简化流程，Kubernetes引入了TLS bootstraping机制来自动颁发客户端证书，kubelet会以一个低权限用户自动向apiserver申请证书，kubelet的证书由apiserver动态签署。所以强烈建议在Node上使用这种方式，目前主要用于kubelet，kube-proxy还是由我们统一颁发一个证书。
+
+**TLS bootstraping工作流程：**
+
+![绘图](D:\Program Files (x86)\Typora\images\k8s安装失败文档\20210304173320.jpg)  
+
+3. 创建token文件
+
+```shell
+#生成token
+TOKEN=$(head -c 16 /dev/urandom | od -An -t x | tr -d ' ')
+
+#创建上面的kube-apiserver.conf文件中包含的token.csv文件
+cat > /opt/kubernetes/cfg/token.csv << EOF
+${TOKEN},kubelet-bootstrap,10001,"system:node-bootstrapper"
+EOF
+
+#这里的token在下面部署worker node的时候还会用到。
+```
+
+> **格式**：token，用户名，UID，用户组
+
+4. 拷贝前面生成的证书
+
+```shell
+#把前面生成的证书拷贝到配置文件的路径下
+cp ~/TLS/k8s/apiserver/ca*pem ~/TLS/k8s/apiserver/server*pem /opt/kubernetes/ssl/
+```
+
+5. systemd管理apiserver
+
+```shell
+cat > /usr/lib/systemd/system/kube-apiserver.service << EOF
+[Unit]
+Description=Kubernetes API Server
+Documentation=https://github.com/kubernetes/kubernetes
+[Service]
+EnvironmentFile=/opt/kubernetes/cfg/kube-apiserver.conf
+ExecStart=/opt/kubernetes/bin/kube-apiserver \$KUBE_APISERVER_OPTS
+Restart=on-failure
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+6. 启动并设置开机启动
+
+```shell
+systemctl daemon-reload
+systemctl start kube-apiserver
+systemctl enable kube-apiserver
+```
 
 
 

@@ -1,10 +1,10 @@
-> ##### 1.修改CentOS的网络适配器设置
+> **1.修改CentOS的网络适配器设置**
 
 如下图所示：
 
 <img src="https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20201118131623.jpg" alt="设置适配器"  />
 
-> ##### 2.查看虚拟机中的网关地址
+> **2.查看虚拟机中的网关地址**
 
 - 步骤一：
 
@@ -16,7 +16,7 @@
 
 由上图可以看出，我这边的网关地址是：`192.168.68.2`
 
-> ##### 3.配置静态IP
+> **3.配置静态IP**
 
 - 进入CentOS7系统中，执行`vim /etc/sysconfig/network-scripts/ifcfg-ens33`命令打开ifcfg-ens33文件；
 - 打开文件后，修改BOOTPROTO的值为static，如果ONBOOT的值是no的话，改成yes，然后再新增IPADDR、NETMASK和GATEWAY这三个参数，我这边修改前后的内容如下所示；

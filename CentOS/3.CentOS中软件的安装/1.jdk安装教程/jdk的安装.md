@@ -33,7 +33,7 @@
 - 把光标移动到文件的最下方，保持输入法为英文状态，然后按键盘上的`i`进入到可编辑模式；
 - 在文件的最下方输入以下内容：
 
-```xml
+```bash
 export JAVA_HOME=/usr/java/jdk1.8.0
 export CLASSPATH=.:$JAVA_HOME/jre/lib/rt.jar:$JAVA_HOME/lib/dt.jar:$JAVA_HOME/lib/tools.jar
 export PATH=$JAVA_HOME/bin:$PATH

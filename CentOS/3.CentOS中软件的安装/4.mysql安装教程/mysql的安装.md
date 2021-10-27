@@ -1,6 +1,6 @@
 **系统软件：**[CentOS-7.4](https://pan.baidu.com/s/1HwhZa1xWg8aDipRdQgfkyg)   **mysql软件**：通过yum命令在线安装
 
-> ##### 1.安装前的准备
+> **1.安装前的准备**
 
 - 先使用`yum list|grep mysql`命令来查看yum源中是否有mysql-server相关的可用包；
 
@@ -20,7 +20,7 @@
 
 这时候如果我们再使用`yum list|grep mysql`命令查看yum源中mysql相关的包时，会发现多了很多包，而且还有mysql-community-server包，这时候我们就可以使用yum命令来安装mysql软件了。
 
-> ##### 2.mysql的安装和登录
+> **2.mysql的安装和登录**
 
 - 使用`yum -y install mysql-server`命令安装mysql包；
 - 安装完成后，先设置一下默认字符集，使用`vim /etc/my.cnf`命令打开my.cnf文件，然后在里面添加`character-set-server=utf8`这样一行内容后保存退出，如下图所示。
@@ -34,7 +34,7 @@
 
 - 获取到临时密码后，我们可以使用`mysql -u root -p`命令进行登录，然后在输入密码的时候输入临时密码即可。
 
-> ##### 3.密码的修改和重置
+> **3.密码的修改和重置**
 
 我们在登录成功后是无法操作任何数据库和表的，必须要先修改密码才行。
 
@@ -48,17 +48,17 @@
   - 之后使用`flush privileges;`语句刷一下权限；
   - 最后就是使用`exit`退出mysql，退出后使用`vim /etc/my.cnf`命令打开my.cnf文件，把之前增加的`skip-grant-tables`这一行内容删除掉后保存退出，再使用`systemctl restart mysqld`命令重启下mysql服务即可。
 
-> ##### 4.防火墙的配置
+> **4.防火墙的配置**
 
 - 首先使用`service firewalld status`命令查看防火墙是否已经开启，如果没有开启，则使用`systemctl start firewalld.service`命令进行开启，开启后，使用`firewall-cmd --zone=public --add-port=3306/tcp --permanent`命令开放3306端口；
 - 然后使用`firewall-cmd --reload`命令使配置生效，这时候我们可以使用`firewall-cmd --list-ports`命令查看防火墙中已开放的端口里有没有3306端口，有就说明添加成功了。
 
-> ##### 5.自启动的配置
+> **5.自启动的配置**
 
 - 依次执行`systemctl enable mysqld`命令和`systemctl daemon-reload`命令即可；
 - 然后可以重启下CentOS系统，不执行启动mysql服务的命令，直接使用`mysql -u root -p`命令进行登录，可以登录就表示设置成功了。
 
-> ##### 6.使用工具进行远程连接
+> **6.使用工具进行远程连接**
 
 - 首先登录进数据库，然后使用`GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFIED BY '你的密码' WITH GRANT OPTION;`语句开放远程连接的权限即可。这里如果担心安全问题，不想远程连接root用户的话，也可以新建一个用户，比如admin用户，只需把以上语句中的root改成admin就可以了，然后后面输入的密码就是为admin用户设置的密码；
 - 之后再使用`flush privileges;`语句刷一下权限，然后使用`exit`退出数据库，退出后最好是使用`systemctl restart mysqld`命令重启下mysql数据库服务；

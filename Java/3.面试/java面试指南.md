@@ -423,6 +423,91 @@ public class Singleton {
 
 ![image-20211224210341440](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20211224210654.png) 
 
+#### 1.3 String字符串
+
+##### 1.3.1 String的不可变性
+
+String字符串是具有不可变性的，值一旦被确定，便不会发生改变，如果重新赋值，其实就是创建一个新的字符串。下面举例说明String的不可变性，演示代码如下：
+
+```java
+package com.interview.base.test;
+
+public class TestString {
+
+    String str = "abc";
+    char[] arr = {'d','e'};
+
+    public static void main(String[] args) {
+        TestString ts = new TestString();
+        ts.test(ts.str,ts.arr);
+        System.out.println(ts.str);//运行结果：abc
+        System.out.println(ts.arr);//运行结果：ce
+    }
+
+    public void test(String str, char[] arr){
+        str = "ok";
+        arr[0] = 'c';
+    }
+}
+```
+
+##### 1.3.2 字符串常量池
+
+###### 1.3.2.1 StringTable的特点
+
+- 字符串常量池就是StringTable，又称String pool，在java8中，字符串常量池是存在`堆内存`中的；
+- StringTable中存储的并不是String类型的对象，而是指向String对象的索引，真实对象还是存储在堆中；
+- 字符串常量池中是不会存储相同内容的字符串的。
+
+###### 1.3.2.2 字符串的拼接
+
+字符串的拼接分为常量与常量的拼接、常量与变量的拼接以及变量与变量的拼接，主要有以下特点：
+
+- 常量与常量的拼接结果是在字符串常量池中，原理是编译器的优化；
+- 字符串的拼接中只要有一个是变量，结果就在堆中，变量拼接的原理是使用了StringBuilder。
+
+下面进行一个案例演示，代码如下：
+
+```java
+package com.interview.base.test;
+
+public class TestString {
+    public static void main(String[] args) {
+        String s1 = "a";
+        String s2 = "b";
+        String s3 = "ab";
+        String s4 = "a" + "b";
+        String s5 = s1 + s2;
+        String s6 = s1 + "b";
+        System.out.println(s3 == s4);//运行结果：true
+        System.out.println(s3 == s5);//运行结果：false
+        System.out.println(s5 == s6);//运行结果：false
+    }
+}
+```
+
+**解释说明：**
+
+- 在`String s3 = "ab"`这一步已经把"ab"放入到字符串常量池中了，`String s4 = "a" + "b"`这一步其实就是到字符串常量池中去取"ab"，所以s3和s4最终是一样的；
+- 而`String s5 = s1 + s2`这一步就涉及到了变量和变量的拼接，原理其实是使用了StringBuilder，最终再调用其toString()方法返回结果，而toString()方法里面其实是使用new String()创建新的字符串对象，所以对s5赋值这一步相当于就是执行了new String("ab")操作；
+- 只要字符串的拼接中有一个是变量，其实底层就会使用到StringBuilder，所以`String s6 = s1 + "b"`这一步其实也会创建一个新的字符串对象，等号比较的是地址，s5和s6是属于不同的字符串对象，所以地址肯定是不一样的。
+
+###### 1.3.2.3 字符串对象问题
+
+**String str = new String("ab")共创建了多少个对象？**
+
+答案是`两个`，使用new关键字会创建一个，字符串常量池中也会创建一个，对应字节码文件内容如下：
+
+![image-20220103141837856](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220103143635.png) 
+
+**String str = new String("a") + new String("b")共创建了多少个对象？**
+
+答案是`六个`，涉及变量的字符串拼接，首先会创建StringBuilder对象，通过new关键字会创建两个字符串对象，然后在字符串常量池中针对a和b又会创建两个对象，最终结果会通过StringBuilder的toString()方法返回，该方法内部使用new String()又创建了一个字符串对象，所以一共是六个。具体字节码文件内容如下：
+
+![image-20220103142854974](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220103143642.png) 
+
+> **说明**：通过`String str = new String("a") + new String("b")`会往字符串常量池中添加"a"、"b"两个字符串常量，但是不会添加"ab"。
+
 ### 2.线程并发篇
 
 #### 2.1 线程状态
@@ -1447,6 +1532,106 @@ jdk的版本不同，类加载器可能会有不同，所以这里就以java8为
 - 内存释放不及时，重写了 finalize 方法的对象在第一次被 gc 时，并不能及时释放它占用的内存，因为要等着FinalizerThread调用完finalize，把它从unfinalized队列移除后，第二次gc时才能真正释放内存。
 
 ### 4.Spring篇
+
+#### 4.1 Spring事务失效的场景
+
+1. ==抛出检查异常导致事务失效==
+
+   ```java
+   @Service
+   public class ServiceImpl {
+   
+       @Autowired
+       private AccountMapper accountMapper;
+   
+       @Transactional
+       public void transfer(int from, int to, int amount) throws FileNotFoundException {
+           int fromBalance = accountMapper.findBalanceBy(from);
+           if (fromBalance - amount >= 0) {
+               accountMapper.update(from, -1 * amount);
+               //abc这个文件是不存在的，所以会抛找不到文件的异常
+               new FileInputStream("abc");
+               accountMapper.update(to, amount);
+           }
+       }
+   }
+   ```
+
+   **原因：**Spring默认只会回滚非检查异常，比如RuntimeException。
+
+   **解决办法：**配置rollbackFor属性，比如：`@Transactional(rollbackFor = Exception.class)`，意思是对于所有异常都进行回滚。
+
+2. ==try-catch掉异常导致事务失效==
+
+   ```java
+   @Service
+   public class ServiceImpl {
+   
+       @Autowired
+       private AccountMapper accountMapper;
+   
+       @Transactional(rollbackFor = Exception.class)
+       public void transfer(int from, int to, int amount)  {
+           try {
+               int fromBalance = accountMapper.findBalanceBy(from);
+               if (fromBalance - amount >= 0) {
+                   accountMapper.update(from, -1 * amount);
+                   new FileInputStream("aaa");
+                   accountMapper.update(to, amount);
+               }
+           } catch (FileNotFoundException e) {
+               e.printStackTrace();
+           }
+       }
+   }
+   ```
+
+   **原因：**事务通知只有捕捉到了目标抛出的异常，才能进行后续的回滚处理，如果目标自己处理掉了异常，事务通知是无法知悉的，也就无法进行回滚。
+
+   **解决办法：**在catch块中添加`throw new RuntimeException(e);`来抛出一个运行时异常，或者在catch块中添加如下内容也行，和抛出运行时异常效果是一样的：
+
+   ```java
+   TransactionInterceptor.currentTransactionStatus().setRollbackOnly();
+   ```
+
+3. ==AOP切面顺序问题导致事务失效==
+
+   **现象：**业务代码中针对添加事务的方法做了自定义切面处理，但是在切面中将异常捕获掉了，导致异常无法回滚。
+
+   **原因：**事务也是一个切面，该切面的默认优先级要比我们自定义切面的高，属于外层切面，所以业务代码中抛出异常后，首先会经过我们的自定义切面，在自定义切面中将异常捕获的话，外层的事务切面就感知不到异常了，自然也就无法执行回滚操作。
+
+   **解决办法：**我们可以在自定义切面的catch块中再抛出一个运行时异常，让事务切面感知到异常，或者也可以通过使用`@Order`注解调高自定义切面的优先级，让事务切面变成内层切面，这样就可以优先处理业务异常。
+
+4. ==非public方法导致事务失效==
+
+   **原因：**Spring为方法创建代理、添加事务通知等的前提条件都是该方法要是public的。
+
+   **解决办法**：
+
+   - 将方法改为public方法即可。
+
+   - 或者我们也可以通过添加如下bean配置来解决：
+
+     ```java
+     @Bean
+     public TransactionAttributeSource transactionAttributeSource() {
+         return new AnnotationTransactionAttributeSource(false);
+     }
+     ```
+
+     > **注意**：一般不推荐使用这个添加bean配置的方式来解决事务失效的问题。
+
+5. ==父子容器导致的事务失效==
+
+   **原因：**子容器扫描范围过大，把未加事务配置的service也扫描进来了。
+
+   **解决办法：**各自扫描各自的，或者干脆不要使用父子容器，所有bean都放在同一容器中。
+
+   > **说明**：使用SpringBoot进行项目开发时是没有父子容器的，所以也不会出现这类事务失效的问题，一般在传统的Spring + MVC项目中才可能会出现父子容器的场景。
+
+
+
+
 
 
 

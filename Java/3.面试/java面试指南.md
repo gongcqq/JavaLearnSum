@@ -1533,7 +1533,84 @@ jdk的版本不同，类加载器可能会有不同，所以这里就以java8为
 
 ### 4.Spring篇
 
-#### 4.1 Spring事务失效的场景
+#### 4.1 Spring的IOC和AOP
+
+##### 4.1.1 Spring IOC
+
+控制反转(Inversion of Control，缩写为`IOC`)就是我们平时说的IOC，IOC容器其实是一个Map集合，里面存放的都是各种对象，我们可以通过`@Component`注解等方式将对象加入到IOC容器中。当需要使用到容器中的对象时，可以再通过`@Autowired`等注解进行依赖注入(Dependency Injection，简称`DI`)。
+
+在没有引入IOC之前，我们都是手动去创建依赖的对象，这个是正转的。在引入IOC之后，依赖的对象是直接由IOC容器创建后再注入到对象中，这就由主动创建变成了被动接受，这个是反转的，控制权颠倒过来了，所以就叫控制反转。
+
+##### 4.1.2 Spring AOP 
+
+AOP的全称是Aspect Oriented Programming，即`面向切面编程`，它是为解耦而生的，面向切面编程也可以说是对面向对象编程(OOP)的补充和完善。它底层使用了代理的方式，作用是在不改变原有业务代码逻辑的基础上，增加一些额外的功能。AOP可以将程序中交叉的业务逻辑(比如安全、日志、事务等)封装成一个切面，最后再注入到目标对象中。
+
+#### 4.2 Spring的事务
+
+##### 4.2.1 事务的特性
+
+事务主要有以下四大特性：
+
+- `原子性`(Atomicity)：强调事务的不可分割，事务中的操作要么都发生，要么都不发生；
+- `一致性`(Consistency)：事务的执行前后数据的完整性应保持一致，数据不会因为事务的执行而遭到破坏；
+- `隔离性`(Isolation)：一个事务的执行，不应该受到其他事务的干扰，即并发执行的事务之间互不干扰；
+- `持久性`(Durability)：一个事务一旦提交，它对数据库中数据的改变就是永久性的。
+
+> **说明**：事务的这四个特性简称ACID，数据库也有事务，都是满足这四个特性的。
+
+##### 4.2.2 事务会产生的问题
+
+| 名称         | 数据的状态 | 实际行为                                 | 产生原因   |
+| ------------ | ---------- | ---------------------------------------- | ---------- |
+| `脏读`       | 未提交     | 打算提交但是数据回滚了，读取了提交的数据 | 数据的读取 |
+| `不可重复读` | 已提交     | 读取了修改前的数据                       | 数据的修改 |
+| `幻读`       | 已提交     | 读取了插入前的数据                       | 数据的插入 |
+
+##### 4.2.3 Spring事务的传播机制
+
+Spring一共定义了七种事务传播机制：
+
+1. `REQUIRED`：如果当前没有事务，则新建一个事务，如果当前存在事务，则加入这个事务，这个是默认的传播机制。
+2. `SUPPORTS`：当前存在事务，则加入当前事务，如果当前没有事务，则以非事务的方式执行。
+3. `MANDATORY`：当前存在事务，则加入当前事务，如果当前事务不存在，则抛出异常。
+4. `REQUIRES_NEW`：总是创建一个新事务，如果当前已经存在事务，则挂起已经存在的事务。
+5. `NOT_SUPPORTED`：以非事务方式执行，如果存在当前事务，则挂起当前事务。
+6. `NEVER`：不使用事务，如果当前存在事务，则抛出异常。
+7. `NESTED`：如果当前存在事务，则在嵌套事务内执行，如果当前没有事务，则执行与**REQUIRED**一样的操作。
+
+在java代码中，以上七种事务传播机制的使用案例如下：
+
+```java
+@Transactional(propagation = Propagation.REQUIRED)
+@Transactional(propagation = Propagation.SUPPORTS)
+@Transactional(propagation = Propagation.MANDATORY)
+@Transactional(propagation = Propagation.REQUIRES_NEW)
+@Transactional(propagation = Propagation.NOT_SUPPORTED)
+@Transactional(propagation = Propagation.NEVER)
+@Transactional(propagation = Propagation.NESTED)
+```
+
+**NESTED和REQUIRES_NEW的区别：**
+
+`REQUIRES_NEW`是新建一个事务，并且新开始的这个事务和原有事务无关，而`NESTED`则是当前存在事务时会开启一个嵌套事务；在NESTED情况下，父事务回滚时，子事务也会回滚，而在REQUIRES_NEW情况下，原有事务回滚，不会影响新开启的事务。
+
+##### 4.2.4 Spring事务的隔离级别
+
+Spring事务主要有以下五种隔离级别：
+
+- `DEFAULT`：这个是Spring默认的隔离级别，使用该隔离级别表示会以数据库的默认隔离级别为准，mysql数据库的默认隔离级别是**REPEATABLE_READ(可重复读)**，oracle数据库的是**READ_COMMITTED(读已提交)**；
+- `READ_UNCOMMITTED`(读未提交)：一个事务可以感知或者操作另外一个未提交的事务，该级别可能会出现脏读、不可重复读、幻读等问题；
+- `READ_COMMITTED`(读已提交)：一个事务只能感知或者操作另一个已经提交的事务，可能会出现不可重复读、幻读；
+- `REPEATABLE_READ`(可重复读)：该级别能够避免脏读、不可重复读，但是不能避免幻读；
+- `SERIALIZABLE`(串行化)：这个是最高的隔离级别，该隔离级别可以避免所有因并发导致的脏读、不可重复读、幻读等问题，但是性能较低。
+
+如果我们项目中使用的是`@Transactional`注解的话，可以通过该注解中的参数设置传播机制和隔离级别，案例如下：
+
+```java
+@Transactional(propagation = Propagation.REQUIRES_NEW,isolation = Isolation.REPEATABLE_READ)
+```
+
+##### 4.2.5 Spring事务失效的场景
 
 1. ==抛出检查异常导致事务失效==
 
@@ -1629,17 +1706,92 @@ jdk的版本不同，类加载器可能会有不同，所以这里就以java8为
 
    > **说明**：使用SpringBoot进行项目开发时是没有父子容器的，所以也不会出现这类事务失效的问题，一般在传统的Spring + MVC项目中才可能会出现父子容器的场景。
 
+#### 4.3 SpringBoot
 
+##### 4.3.1 SpringBoot简介
 
+SpringBoot并不是一个框架，它是Spring生态的产品，它简化了使用Spring的难度，省略了繁重的xml配置，能够快速创建出生产级别的Spring应用。
 
+##### 4.3.2 SpringBoot的优缺点
 
+**SpringBoot的优点：**
 
+1. 可以快速创建独立的Spring应用；
+2. 内嵌了web服务器，无需再以war包形式部署项目；
+3. 提供了一系列的starter启动器，简化了构建配置；
+4. 自动版本仲裁功能可以让我们无需担心依赖的版本冲突问题；
+5. 自动配置Spring以及第三方功能；
+6. 提供生产级别的监控、健康检查及外部化配置；
+7. 无代码生成、无需编写XML文件等。
 
+**SpringBoot的缺点：**
 
+1. 人称版本帝，迭代快，需要时刻关注变化；
+2. 封装太深，内部原理复杂，不容易精通。
 
+##### 4.3.3 SpringBoot中的常用注解
 
+SpringBoot中的常用注解如下：
+
+- `@SpringBootApplication`：这是一个组合注解，用在SpringBoot主类上，标识这是一个SpringBoot应用，用来开启SpringBoot的各项能力；
+- `@EnableAutoConfiguration`：这是一个允许SpringBoot自动配置的注解，开启这个注解之后，SpringBoot就能根据当前类路径下的包或者类来配置Spring Bean；
+- `@Configuration`：用来代替applicationContext.xml配置文件，所有这个配置文件里面能做到的事情都可以通过这个注解所在类来进行注册，添加该注解的类也叫配置类；
+- `@ComponentScan`：开启组件扫描，即自动扫描包路径下的@Component注解进行注册bean实例到context中；
+- `@Bean`：用来代替xml配置文件里面的bean配置；
+- `@ImportResource`：对于有些通过类的注册方式配置不了的，可以通过这个注解引入额外的xml配置文件；
+- `@Import`：可以使用这个注解给容器中自动创建多个不同类型的组件；
+
+##### 4.3.4 SpringBoot自动装配原理
+
+1. 通过`@SpringBootApplication`注解引入`@EnableAutoConfiguration`注解：
+
+   ![image-20220105165300556](D:\Program Files (x86)\Typora\images\java面试指南\image-20220105165300556.png) 
+
+2. 然后再通过`@EnableAutoConfiguration`注解引入`@Import(AutoConfigurationImportSelector.class)`：
+
+   ![image-20220105165444338](D:\Program Files (x86)\Typora\images\java面试指南\image-20220105165444338.png) 
+
+3. 在AutoConfigurationImportSelector类中有一个内部类AutoConfigurationGroup，其中有一个process方法，该方法中会调用到AutoConfigurationImportSelector类的getAutoConfigurationEntry方法：
+
+   ![image-20220105170021949](D:\Program Files (x86)\Typora\images\java面试指南\image-20220105170021949.png) 
+
+4. 在getAutoConfigurationEntry方法中又会调用getCandidateConfigurations方法，然后一直深入：
+
+   ![image-20220105170502265](D:\Program Files (x86)\Typora\images\java面试指南\image-20220105170502265.png) 
+
+   ![image-20220105170613569](D:\Program Files (x86)\Typora\images\java面试指南\image-20220105170613569.png) 
+
+   ![image-20220105172629698](D:\Program Files (x86)\Typora\images\java面试指南\image-20220105172629698.png) 
+
+   > **说明**：最终会读取所有模块中`META-INF/spring.factories`文件里的内容。
+
+5. 以spring-boot-autoconfigure-2.3.7.RELEASE.jar中的**META-INF/spring.factories**文件为例，如果我们使用了`@EnableAutoConfiguration`注解，默认会加载spring.factories文件中对应的所有类：
+
+   ![image-20220105175535495](D:\Program Files (x86)\Typora\images\java面试指南\image-20220105175535495.png) 
+
+   > **说明**：我这边只是截取了一部分，EnableAutoConfiguration对应的会被自动装配的类一共有127个，不同版本的SpringBoot可能会有不同。
+
+6. 上一步的那些类并不会都被放到IOC容器中，因为每个类上都会有类似`@ConditionalOnClass`这样的注解，只有满足一定条件的自动配置类才会被放入到容器中。
 
 ### 5.Mysql篇
+
+#### 5.1 数据库三大范式
+
+为了建立冗余较小、结构合理的数据库，设计数据库时必须遵循一定的规则，在关系型数据库中这种规则就称为范式。范式是符合某一种设计要求的总结，要想设计一个结构合理的关系型数据库，必须满足一定的范式。
+
+在实际开发中，最为常见的设计范式有三个：
+
+- `第一范式`：要求表的每个字段必须是不可分割的独立单元；
+- `第二范式`：在第一范式的基础上，要求每张表只表达一个意思，表的每个字段都和表的主键有依赖关系；
+- `第三范式`：在第二范式的基础上，要求每张表的主键之外的其他字段都只能和主键有直接决定性的依赖关系。
+
+#### 5.2 mysql索引
+
+
+
+
+
+
 
 
 

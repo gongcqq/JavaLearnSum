@@ -1745,29 +1745,29 @@ SpringBoot中的常用注解如下：
 
 1. 通过`@SpringBootApplication`注解引入`@EnableAutoConfiguration`注解：
 
-   ![image-20220105165300556](D:\Program Files (x86)\Typora\images\java面试指南\image-20220105165300556.png) 
+   ![image-20220105165300556](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220106231317.png) 
 
 2. 然后再通过`@EnableAutoConfiguration`注解引入`@Import(AutoConfigurationImportSelector.class)`：
 
-   ![image-20220105165444338](D:\Program Files (x86)\Typora\images\java面试指南\image-20220105165444338.png) 
+   ![image-20220105165444338](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220106231325.png) 
 
 3. 在AutoConfigurationImportSelector类中有一个内部类AutoConfigurationGroup，其中有一个process方法，该方法中会调用到AutoConfigurationImportSelector类的getAutoConfigurationEntry方法：
 
-   ![image-20220105170021949](D:\Program Files (x86)\Typora\images\java面试指南\image-20220105170021949.png) 
+   ![image-20220105170021949](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220106231333.png) 
 
 4. 在getAutoConfigurationEntry方法中又会调用getCandidateConfigurations方法，然后一直深入：
 
-   ![image-20220105170502265](D:\Program Files (x86)\Typora\images\java面试指南\image-20220105170502265.png) 
+   ![image-20220105170502265](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220106231339.png) 
 
-   ![image-20220105170613569](D:\Program Files (x86)\Typora\images\java面试指南\image-20220105170613569.png) 
+   ![image-20220105170613569](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220106231347.png) 
 
-   ![image-20220105172629698](D:\Program Files (x86)\Typora\images\java面试指南\image-20220105172629698.png) 
+   ![image-20220105172629698](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220106231354.png) 
 
    > **说明**：最终会读取所有模块中`META-INF/spring.factories`文件里的内容。
 
 5. 以spring-boot-autoconfigure-2.3.7.RELEASE.jar中的**META-INF/spring.factories**文件为例，如果我们使用了`@EnableAutoConfiguration`注解，默认会加载spring.factories文件中对应的所有类：
 
-   ![image-20220105175535495](D:\Program Files (x86)\Typora\images\java面试指南\image-20220105175535495.png) 
+   ![image-20220105175535495](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220106231403.png) 
 
    > **说明**：我这边只是截取了一部分，EnableAutoConfiguration对应的会被自动装配的类一共有127个，不同版本的SpringBoot可能会有不同。
 
@@ -1787,7 +1787,85 @@ SpringBoot中的常用注解如下：
 
 #### 5.2 mysql索引
 
+索引是帮助MySQL高效获取数据的数据结构(有序)。在数据之外，数据库系统还维护着满足特定查找算法的数据结构，这些数据结构以某种方式引用(指向)数据，这样就可以在这些数据结构上实现高级查找算法，这种数据结构就是`索引`。
 
+一般来说，索引本身也很大，不可能全部存储在内存中，因此索引往往以索引文件的形式存储在磁盘上，所以索引查找过程中是会产生磁盘I/O消耗的。
+
+##### 5.2.1 创建索引的原则
+
+- 更新频繁的列不应设置索引；
+- 数据量小的表不要使用索引；
+- 重复数据多的字段不应设为索引(比如性别，只有男和女，一般来说，重复的数据超过百分之15就不该建索引)；
+- 首先应该考虑对where和order by涉及的列上建立索引。
+
+##### 5.2.2 索引的优缺点
+
+**索引的优点：**
+
+- 使用索引可以加快数据的查询速度，并且可以降低查询时对磁盘的I/O消耗；
+- 索引可以帮助服务器避免排序和创建临时表；
+- 通过使用索引，可以在查询的过程中，使用优化隐藏器，提高系统的性能。
+
+**索引的缺点：**
+
+- 索引也是需要占据磁盘空间的，所以索引并不是越多越好；
+- 创建和维护索引都是需要消耗时间的，并且随着数据量的增加，时间也会增加；
+- 虽然索引可以提高查询效率，但同时也会降低更新表的速度，因为当对表进行insert、update、delete操作时，需要动态更改索引文件中记录的表数据相关的信息。
+
+##### 5.2.3 索引的分类
+
+<img src="https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220106231207.png" alt="image-20220106215332302" style="zoom: 60%;" /> 
+
+##### 5.2.4 索引的结构
+
+MySQL中有多种索引结构(索引底层的数据结构)，常用Hash，B树，B+树等数据结构来进行数据存储。这里只介绍下最常用的B树及其的变体B+树。
+
+索引是在MySQL的存储引擎层中实现的，而不是在服务器层实现的。所以每种存储引擎的索引都不一定完全相同，也不是所有的存储引擎都支持所有的索引类型的。**我们常用的InnoDB引擎、MyISAM引擎默认都使用的是B+树索引**。
+
+B树是一种多路搜索树，下图是3阶B树：
+
+<img src="https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220106231220.png" alt="image-20220106182432004" style="zoom: 65%;" /> 
+
+**B树的特征：**
+
+- 关键字集合分布在整棵树中；
+- 任何一个关键字出现且只出现在一个节点中；
+- 搜索有可能在非叶子节点结束；
+- 其搜索性能等价于在关键字全集内做一次二分查找；
+- 自动层次控制。
+
+> **说明**：B树的搜索，从根节点开始，对节点内的关键字(有序)序列进行二分查找，如果命中则结束，否则进入查询关键字所属范围的孩子节点，依次重复，直到所对应的孩子指针为空或已经是叶子节点。
+
+B+树是B树的变体，也是一种多路搜索树，如下图所示：
+
+<img src="https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220106231233.png" alt="image-20220106182503116" style="zoom: 76%;" /> 
+
+**B+树的特征：**
+
+- 所有关键字都出现在叶子节点的链表中(稠密索引)，且链表中的关键字恰好是有序的；
+- 不可能在非叶子节点命中；
+- 非叶子节点相当于是叶子节点的索引(稀疏索引)，叶子节点相当于是存储数据的数据层；
+- 每一个叶子节点都包含指向下一个叶子节点的指针，从而方便叶子节点的范围遍历。
+
+> **说明**：B+树的搜索与B树也基本相同，区别是B+树只有达到叶子节点才命中(B树可以在非叶子节点命中)，其性能也等价于在关键字全集做一次二分查找。
+
+**B+树比B树更适合作为索引的原因：**
+
+- `B+树的磁盘读写代价更低`：B+树的数据都集中在叶子节点，分支节点只负责指针(索引)。B树的分支节点既有指针也有数据，这将导致B+树的层高会小于B树的层高，也就是说B+树平均的I/O次数会小于B树；
+- `B+树的查询效率更加稳定`：B+树的数据都存在叶子节点，故任何关键字的查找必须走一条从根节点到叶子节点的路径，所有关键字的查询路径相同，每个数据查询效率相当；
+- `B+树更便于遍历`：由于B+树的数据都在叶子节点中，分支节点均为索引，所以遍历只需要扫描一遍叶子节点即可；B树因为其分支节点同样存储着数据，所以要找到具体的数据，遍历较B+树将更加麻烦；
+- `B+树更擅长范围查询`：B+树叶子节点存放数据，数据是按顺序放置的双向链表，并且每一个叶子节点都包含指向下一个叶子节点的指针，所以更适合范围查询；
+- `B+树占用内存空间小`：B+树索引节点没有数据，占用内存很小，所以在内存有限的情况下，相比于B树索引可以加载更多B+树索引。
+
+**B+树索引和哈希索引的明显区别：**
+
+- 如果是等值查询，那么哈希索引明显有绝对优势，因为只需要经过一次算法即可找到相应的键值；这有个前提，键值都是唯一的。如果键值不是唯一的，就需要先找到该键所在位置，然后再根据链表往后扫描，直到找到相应的数据；
+- 如果是范围查询检索，这时候哈希索引就毫无用武之地了，因为原先是有序的键值，经过哈希算法后，有可能变成不连续的了，就没办法再利用索引完成范围查询检索；
+- 哈希索引也没办法利用索引完成排序，以及like这样的模糊查询(这种模糊查询，其实本质上也是范围查询)；
+- 哈希索引也不支持多列联合索引的最左匹配规则；
+- B+树索引的关键字检索效率比较平均，不像B树那样波动幅度大，另外，在有大量重复键值情况下，哈希索引的效率也是极低的，因为存在所谓的哈希碰撞问题。
+
+##### 5.2.5 聚簇与非聚簇索引
 
 
 

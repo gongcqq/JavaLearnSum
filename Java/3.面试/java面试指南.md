@@ -2302,6 +2302,98 @@ SQL的优化包括但不限于以下方案：
 
 ### 6.Linux篇
 
+#### 6.1 grep的用法
+
+常用参数及案例如下：
+
+- `-A<num>`：打印出紧随匹配的行之后的下文num行，比如grep -A2 "JAVA" test.log；
+
+  ![image-20220113192618510](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220113222009.png) 
+
+- `-B<num>`：打印出紧随匹配的行之前的上文num行，比如grep -B2 "JAVA" test.log；
+
+  ![image-20220113192746617](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220113222021.png) 
+
+- `-c`：打印出匹配行的总数，比如grep -c "java" test.log；
+
+  ![image-20220113193129769](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220113222051.png) 
+
+- `-C<num>`：打印出匹配行的上下文前后各num行，比如grep -C "JAVA" test.log；
+
+  ![image-20220113193729658](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220113222109.png) 
+
+- `-E`：可以通过该参数实现and、or的效果，比如grep -E "cmdb.*costTime" test.log；
+
+  ![image-20220113200521750](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220113222115.png) 
+
+  > **说明**：我们也可以使用`egrep`，它和使用`grep -E`的效果是一样的。
+
+- `-F`：不使用正则表达式，按照字符串字面意思进行匹配，比如grep -F "bcd.*" test.log；
+
+  ![image-20220113201542565](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220113222128.png) 
+
+- `-i`：匹配时，忽略字符串的大小写，比如grep -i "java" test.log；
+
+  ![image-20220113201932679](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220113222134.png) 
+
+- `-l`：只显示匹配指定字符串的文件名，不显示具体匹配行的内容，比如grep -l "JAVA" *；
+
+  ![image-20220113205356237](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220113222139.png) 
+
+- `-n`：显示过滤内容在文件中的行号，比如grep -n "java" test.log；
+
+  ![image-20220113203004056](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220113222147.png) 
+
+- `-o`：只显示匹配字符串的内容，比如grep -o "JAVA" test.log；
+
+  ![image-20220113203324845](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220113222153.png) 
+
+- `-v`：显示不包含匹配内容的所有行，比如grep -v "aaa" abc.log；
+
+  ![image-20220113203746617](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220113222158.png) 
+
+- `-w`：匹配整词，即只显示全字符和的列，比如grep -w "aaa" abc.log；
+
+  ![image-20220113204337789](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220113222203.png) 
+
+- `-x`：匹配整行，比如grep -x "I love JAVA very much！" test.log；
+
+  ![image-20220113204751111](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220113222208.png) 
+
+另外，grep也支持`正则表达式`，比如==.==表示一个字符，==^==表示以什么开头，==$==表示以什么结尾，==[0-9a-zA-Z]*==表示匹配所有数字和大小写字母。案例如下所示：
+
+```bash
+grep "costTime:\[...\]ms" test.log
+grep "costTime:\[[0-9]*\]ms" test.log
+grep "engine\[[0-9A-Z]*\]" test.log
+grep "engine\[[a-z]*\]" test.log
+grep "engine\[[0-9]*\]" test.log
+```
+
+![image-20220113222655225](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220113222708.png) 
+
+![image-20220113211458353](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220113222218.png) 
+
+#### 6.2 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

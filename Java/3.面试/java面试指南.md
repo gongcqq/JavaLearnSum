@@ -2302,7 +2302,7 @@ SQL的优化包括但不限于以下方案：
 
 ### 6.Linux篇
 
-#### 6.1 grep的用法
+#### 6.1 grep命令的用法
 
 常用参数及案例如下：
 
@@ -2374,31 +2374,205 @@ grep "engine\[[0-9]*\]" test.log
 
 ![image-20220113211458353](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220113222218.png) 
 
-#### 6.2 
+#### 6.2 awk命令的用法
 
+##### 6.2.1 直接打印指定列内容
 
+```bash
+cat netstat.txt|awk '{print $1, $4, $6}'
+```
 
+![image-20220115203827227](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220115224527.png) 
 
+##### 6.2.2 对齐打印的内容
 
+通过上面的操作可以发现，虽然可以打印出指定列的内容，但是格式看上去比较乱，不利于观察，我们可以使用类似下面的命令进行左对齐或者右对齐操作，如下所示：
 
+```bash
+# 左对齐
+cat netstat.txt|awk '{printf "%-10s %-15s %-s\n",$1, $4, $6}'
 
+# 右对齐
+cat netstat.txt|awk '{printf "%+10s %+15s %+10s\n",$1, $4, $6}'
+```
 
+![image-20220115212133295](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220115224535.png) 
 
+> **说明**：如果打印的列是字符串的话，格式符就用`%s`，如果是十进制的整数，就用`%d`；左对齐就使用`-`，右对齐就使用`+`；数字代表多少空格，比如`%-10s`就表示列是字符串，使用的对齐方式是左对齐，并且和下一列间隔10个空格。
 
+##### 6.2.3 根据指定字符拼接打印内容
 
+```bash
+cat netstat.txt|awk '{print $1 "|" $4 "|" $6}'
+```
 
+![image-20220115204246941](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220115224541.png) 
 
+##### 6.2.4 根据条件打印指定列内容
 
+```bash
+cat netstat.txt|awk '$1=="tcp6" && $2==1 {print $0}'
+```
 
+![image-20220115205257787](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220115224549.png) 
 
+> **说明**：上图中的`print $0`的意思是打印所有列的内容。
 
+##### 6.2.5 展示指定行的内容
 
+虽然我们可以根据条件打印指定列的内容，但是由于表头行并不满足条件要求，所以并没有打印出来。表头一般都是第一行的内容，所以如果我们希望打印出来的话，可以使用awk的内置变量`NR`。`NR`是用于获取指定行的内容的，从1开始。所以命令如下所示：
 
+```bash
+cat netstat.txt|awk '($1=="tcp6" && $2==1) || NR==1 {print $0}'
+```
 
+![image-20220115214607228](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220115224555.png) 
 
+##### 6.2.6 改变默认分隔符打印内容
 
+默认情况下使用awk，字段分隔符是空格或者Tab键，行分隔符是回车换行，下面就使用awk内置变量改变默认分隔符来演示效果，如下所示：
 
+```bash
+# 打印所有列
+cat list.txt|awk 'BEGIN{RS=",";FS="|"} {print $0}'
 
+# 打印指定列
+cat list.txt|awk 'BEGIN{RS=",";FS="|"} {print $2, $3}'
+```
+
+![image-20220115221959099](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220115224601.png) 
+
+> **说明**：上图中的`BEGIN`其实就是一个前置操作，比如当我们要使用`print`打印指定列时，我们可以将打印前需要执行的操作或者需要设置的内容放到`BEGIN`中。而`RS`则用于设置输入行的分隔符，默认是回车换行；`FS`则用于设置输入字段的分隔符，默认是空格或者Tab键。
+
+##### 6.2.7 指定输入字段分隔符打印内容
+
+```bash
+# 使用"-F"参数的方式
+cat test.txt|awk -F "|" '{print $2}'
+
+# 使用内置变量"FS"的方式
+cat test.txt|awk 'BEGIN{FS="|"} {print $2}'
+```
+
+![image-20220115224254594](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220115224644.png) 
+
+#### 6.3 sed命令的用法
+
+下面是为了方便演示而准备的素材，内容如下：
+
+```xml
+Str a = "The beautiful girl`s boy friend is Jack".
+Str b = "Do you know Jack? I know, Jack is a real man".
+Str c = "The beautiful girl loves Jack so mach".
+
+This is test Str or STR.Please ignore!
+Integer bf = new Integer(2);
+```
+
+##### 6.3.1 修改每行开头的内容
+
+```bash
+# 将每行开头的"Str"替换成"String"
+cat replace.txt|sed 's/^Str/String/'
+```
+
+![image-20220116131135840](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220116152209.png) 
+
+##### 6.3.2 修改每行结尾的内容
+
+```bash
+# 将每行结尾的"."替换成";"，由于"."是特殊字符，所以要转义
+cat replace.txt|sed 's/\.$/;/'
+```
+
+![image-20220116134710831](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220116152225.png) 
+
+##### 6.3.3 修改每行第一次出现的内容
+
+```bash
+# 将每行第一次出现的"Jack"替换成"me"
+cat replace.txt|sed 's/Jack/me/'
+```
+
+![image-20220116135345452](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220116152232.png) 
+
+##### 6.3.4 修改每行第二次出现的内容
+
+```bash
+# 将每行中的第二个"Jack"替换成"me"
+cat replace.txt|sed 's/Jack/me/2g'
+```
+
+![image-20220116135815813](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220116152238.png) 
+
+##### 6.3.5 修改每行指定的所有字符串
+
+```bash
+# 如下命令会将每行中所有包含"Jack"的内容都替换成"me"
+cat replace.txt|sed 's/Jack/me/g'
+```
+
+![image-20220116140303650](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220116152244.png) 
+
+> **说明**：使用`i`的话，在替换时可以忽略大小写，比如`cat replace.txt|sed 's/Jack/me/ig'`。这样一来，即便某些行中存在"JACK"、"jaCK"这种字符串，也都会被替换成"me"。
+
+##### 6.3.6 删除指定行的内容
+
+```bash
+# 删除空行和以"Integer"开头的行
+cat replace.txt|sed '/^ *$/d;/^Integer/d'
+```
+
+![image-20220116140744057](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220116152250.png) 
+
+##### 6.3.7 在行前或行后增加指定内容
+
+```bash
+# 在包含指定字符串的行的行前增加指定内容
+cat replace.txt|sed '/beautiful/i 12345abcde'
+
+# 在包含指定字符串的行的行后增加指定内容
+cat replace.txt|sed '/beautiful/a abcde12345'
+```
+
+![image-20220116143235443](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220116152259.png) 
+
+![image-20220116143545947](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220116152306.png) 
+
+##### 6.3.8 修改原文件的内容
+
+以上演示的内容都是通过管道符对输出流的展示做操作，并不会修改原文件的内容，如果我们希望直接对原文件进行修改的话，可以使用`-i`参数，举例如下：
+
+```bash
+sed -i '/^ *$/d;/^Integer/d' replace.txt
+```
+
+![image-20220116145315276](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220116152315.png) 
+
+#### 6.4 cut命令和sort命令
+
+为了演示方便，现准备如下素材：
+
+```xml
+1,Chinese,85
+2,English,76
+3,Math,92
+```
+
+我们可以使用`cut`命令指定分隔符进行截取，并展示指定列的内容；对于展示的指定列，如果符合自然排序规则，我们可以使用`sort`命令进行排序，演示如下：
+
+```bash
+# 使用逗号作为分隔符，分割后展示第二列、第三列的内容
+cat score.txt|cut -d "," -f 2,3
+
+# 对展示的指定列进行正序排列
+cat score.txt|cut -d "," -f 3|sort -n
+
+# 对展示的指定列进行倒序排列
+cat score.txt|cut -d "," -f 3|sort -nr
+```
+
+![image-20220116152112915](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220116152322.png) 
 
 ### 7.Redis篇
 

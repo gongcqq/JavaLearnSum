@@ -2576,6 +2576,73 @@ cat score.txt|cut -d "," -f 3|sort -nr
 
 ### 7.Redis篇
 
+#### 7.1 RDB和AOF
+
+##### 7.1.1 RDB持久化
+
+RDB全称是Redis Database Backup file(Redis数据备份文件)，也被叫做Redis数据快照。简单来说就是把内存中的所有数据都记录到磁盘中。当Redis实例故障重启后，从磁盘读取快照文件，恢复数据。快照文件称为RDB文件，默认是保存在当前运行目录。
+
+Redis停机时会执行一次RDB。我们也可以通过`save`或者`bgsave`命令执行RDB，区别在于，`save`命令是由redis主进程来执行RDB，而redis是单线程设计，所以这时会阻塞所有命令；而`bgsave`命令则是由一个异步的子进程来执行RDB，所以并不会阻塞主进程。
+
+Redis内部有触发RDB的机制，可以在redis.conf文件中找到，格式如下：
+
+![image-20220118213451227](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220118222602.png)  
+
+RDB的其它配置也可以在redis.conf文件中设置，例如：
+
+![image-20220118213519188](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220118222607.png) 
+
+bgsave底层在工作时，开始会fork主进程得到子进程，子进程共享主进程的内存数据，完成fork后会读取内存数据并写入RDB文件。
+
+fork采用的是copy-on-write技术：
+
+- 当主进程执行读操作时，访问共享内存；
+- 当主进程执行写操作时，则会拷贝一份数据，执行写操作。
+
+下图是bgsave底层执行流程的原理图：
+
+![image-20220118214059348](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220118222611.png) 
+
+**RDB的优缺点：**
+
+- **优点：**
+  - 对于灾难恢复而言，RDB是非常不错的选择；
+  - redis加载RDB文件恢复数据远远快于AOF方式；
+  - RDB是一个快照文件，数据很紧凑，它保存了redis在某个时间点上的数据集，体积比较小。
+- **缺点：**
+  - RDB执行间隔时间长，两次RDB之间写入数据有丢失的风险；
+  - RDB是通过fork子进程来协助完成数据持久化工作的，当数据集较大时，fork子进程、压缩、写出RDB文件这一系列流程是比较耗时的。
+
+##### 7.1.2 AOF持久化
+
+AOF全称为Append Only File(追加文件)。redis处理的每一个写命令都会记录在AOF文件，所以AOF文件其实是记录命令的，因此可以看做是一个命令日志文件。
+
+AOF默认是关闭的，需要修改redis.conf配置文件来开启AOF，如下所示：
+
+![image-20220118220521665](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220118222753.png) 
+
+AOF的命令记录频率也可以通过redis.conf文件来修改，如下所示：
+
+![image-20220118220849837](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220118222758.png) 
+
+> **说明**：一般情况下，AOF的命令记录频率是不建议修改的，就使用默认方案即可。
+
+由于是记录命令，所以AOF文件会比RDB文件大的多。而且AOF会记录对同一个key的多次写操作，但其实只有最后一次写操作才有意义。通过执行`bgrewriteaof`命令，可以让AOF文件执行重写功能，即用最少的命令达到相同效果，如下所示：
+
+![image-20220118221429060](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220118222805.png) 
+
+redis也会在触发阈值时自动去重写AOF文件，阈值也可以在redis.conf中配置：
+
+![image-20220118221545056](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220118222815.png) 
+
+AOF和RDB是各有优缺点的，它们的主要区别如下：
+
+![image-20220118221850519](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220118222824.png) 
+
+> **说明**：使用AOF方式最大的好处就是能够较好地保证数据的完整性，其实在实际场景中，RDB和AOF这两种方式一般是会被结合起来使用的。
+
+#### 7.2 
+
 
 
 

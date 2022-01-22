@@ -2641,7 +2641,79 @@ AOF和RDB是各有优缺点的，它们的主要区别如下：
 
 > **说明**：使用AOF方式最大的好处就是能够较好地保证数据的完整性，其实在实际场景中，RDB和AOF这两种方式一般是会被结合起来使用的。
 
-#### 7.2 
+#### 7.2 Redis集群
+
+Redis集群的搭建主要包含三种方式，分别是`Redis主从集群`、`Redis哨兵集群`、`Redis分片集群`。
+
+##### 7.2.1 Redis主从集群
+
+###### 7.2.1.1 主从集群架构
+
+Redis的主从集群基础架构如下所示：
+
+![image-20220120224817137](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220122225111.png) 
+
+我们可以在某个Redis节点上通过`slaveof ip port`命令将该节点加入到Redis集群中，加入集群后该节点会成为该ip和port对应的Redis的slave节点。
+
+由于主从之间需要进行数据同步，所以如果从节点过多的话，会大大增加主节点的压力，这时候就可以使用主-从-从的链式结构，从而减小主节点的压力，此时的集群架构如下所示：
+
+![image-20220122204540810](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220122225119.png) 
+
+###### 7.2.1.2 主从数据同步原理
+
+主从节点之间的数据同步主要包括`全量同步`和`增量同步`。主从第一次同步就是全量同步，流程如下所示：
+
+![image-20220122210518926](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220122225125.png) 
+
+master如何判断slave是不是第一次来同步数据，这里主要是用到两个很重要的概念：
+
+- `Replication Id`：简称replid，是数据集的标记，id一致则说明是同一数据集，每个master都有唯一的replid，slave则会继承master节点的replid；
+- `offset`：偏移量，随着记录在repl_baklog中的数据增多而逐渐增大。当slave在完成同步时，也会记录当前同步的offset。如果slave的offset小于master的offset，说明slave数据落后于master，则需要更新。
+
+**因此，slave做数据同步，必须向master声明自己的replid和offset，master才可以判断到底需要同步哪些数据。**
+
+全量同步的基本流程如下：
+
+1. slave节点向master节点请求增量同步；
+2. master节点判断replid，发现不一致，拒绝增量同步；
+3. master将完整内存数据生成RDB，发送RDB到slave，开始全量同步；
+4. slave清空本地数据，加载master的RDB数据；
+5. master将RDB期间的命令记录在repl_baklog，并持续将log中的命令发送给slave；
+6. slave执行接收到的命令，以保持与master之间的同步。
+
+主从第一次同步是全量同步，但如果slave重启后再同步，则是**增量同步**，流程如下所示：
+
+![image-20220122224121495](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220122225137.png) 
+
+**Redis主从集群的优化手段：**
+
+- 在master的redis.conf配置文件中配置repl-diskless-sync属性值为yes来启用无磁盘复制，避免全量同步时的磁盘IO(网络带宽较好时可采用此方案)；
+- Redis单节点上的内存占用不要太大，减少RDB导致的过多磁盘IO；
+- 适当提高repl_baklog的大小，发现slave宕机时尽快实现故障恢复，尽可能避免全量同步；
+- 限制一个master上的slave节点数量，如果实在有太多slave，则可以采用主-从-从链式结构，减少master压力。
+
+**总结：**
+
+**何时执行全量同步：**
+
+- slave节点第一次连接master节点时；
+- slave节点断开时间太久，repl_baklog中的offset已经被覆盖时。
+
+**何时执行增量同步：**
+
+- slave节点断开又恢复，并且在repl_baklog中能找到offset时。
+
+##### 7.2.2 Redis哨兵集群
+
+
+
+
+
+
+
+
+
+##### 7.2.3 Redis分片集群
 
 
 

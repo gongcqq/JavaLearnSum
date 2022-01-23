@@ -2576,7 +2576,7 @@ cat score.txt|cut -d "," -f 3|sort -nr
 
 ### 7.Redis篇
 
-#### 7.1 RDB和AOF
+#### 7.1 Redis的持久化
 
 ##### 7.1.1 RDB持久化
 
@@ -2641,7 +2641,7 @@ AOF和RDB是各有优缺点的，它们的主要区别如下：
 
 > **说明**：使用AOF方式最大的好处就是能够较好地保证数据的完整性，其实在实际场景中，RDB和AOF这两种方式一般是会被结合起来使用的。
 
-#### 7.2 Redis集群
+#### 7.2 Redis的集群搭建
 
 Redis集群的搭建主要包含三种方式，分别是`Redis主从集群`、`Redis哨兵集群`、`Redis分片集群`。
 
@@ -2705,15 +2705,178 @@ master如何判断slave是不是第一次来同步数据，这里主要是用到
 
 ##### 7.2.2 Redis哨兵集群
 
+###### 7.2.2.1 哨兵的结构和作用
 
+Redis提供了哨兵(Sentinel)机制来实现主从集群的自动故障恢复。哨兵的结构和作用如下：
 
+- `监控`：Sentinel会不断检查我们的master和slave是否按预期工作；
+- `自动故障恢复`：如果master出现了故障，Sentinel会将一个slave提升为master，故障的master恢复后将会作为slave运行；
+- `通知`：Sentinel充当Redis客户端的服务发现来源，当集群发生故障转移时，会将最新信息推送给Redis的客户端。
 
+<img src="https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220123211211.png" alt="image-20220123200832264" style="zoom:80%;" /> 
 
+> **说明**：Redis的哨兵机制本身也是一个集群，不然如果自己本身出现了故障，就无法起到监测集群的作用了。
 
+###### 7.2.2.2 哨兵的服务状态监测
 
+Sentinel哨兵基于心跳机制监测服务状态，每隔1秒会向集群的每个实例发送ping命令：
 
+- `主观下线`：如果某sentinel节点发现某实例未在规定时间响应，则认为该实例**主观下线**；
+- `客观下线`：若超过指定数量(quorum)的sentinel都认为该实例主观下线，则该实例**客观下线**。quorum的值最好超过Sentinel实例数量的一半。
+
+<img src="https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220123211219.png" alt="image-20220123201737449" style="zoom:85%;" /> 
+
+> **说明**：如上图所示，当三个Sentinel实例中有两个都认为master实例主观下线，则该master实例客观下线，这时就会选举新的master节点。
+
+###### 7.2.2.3 master的选举依据
+
+一旦发现master故障，sentinel就需要在salve中选择一个作为新的master，选举的依据如下：
+
+1. 首先会判断slave节点与master节点断开时间长短，如果超过指定值(down-after-milliseconds * 10)，数据的完整性得不到保证，则会排除该slave节点；
+2. 然后会判断slave节点的slave-priority值，越小优先级越高，默认都是一样的，如果是0则永不参与选举；
+3. 如果slave-prority值一样，则判断slave节点的offset值，越大说明数据越新，优先级越高；
+4. 如果offset值也一样，说明选哪个slave都一样，那么就会随机选择一个slave。这里在随机选择时，是根据slave节点的运行id大小做判断的，越小优先级越高。
+
+###### 7.2.2.4 实现故障转移的步骤
+
+当选中了其中一个slave为新的master后，实现故障转移的步骤如下：
+
+- Sentinel会给备选的slave节点发送`slaveof no one`命令，让该节点成为master节点；
+- 然后会给所有其他的slave节点发送`slaveof 新master的ip 新master的端口`命令，让这些slave成为新master的从节点，并开始从新的master节点上同步数据；
+- 最后，Sentinel会将故障节点标记为slave节点，当故障节点恢复后会自动成为新master节点的slave节点。
+
+###### 7.2.2.5 RedisTemplate的哨兵模式
+
+在Sentinel集群监管下的Redis主从集群，其节点会因为自动故障转移而发生变化，Redis的客户端必须要能感知到这种变化，并及时更新连接信息。Spring的RedisTemplate底层利用lettuce实现了节点的感知和自动切换。
+
+在application.yml配置文件中，可以通过如下方式进行哨兵的配置：
+
+```yaml
+spring:
+  redis:
+    sentinel:
+      master: mymaster  # 指定master名称
+      nodes:  # 指定redis-sentinel的集群信息
+        - 192.168.68.10:7001
+        - 192.168.68.11:7001
+        - 192.168.68.12:7001
+```
+
+> **说明**：以上配置的集群信息是redis哨兵集群的集群信息，并不是redis节点的集群信息。
+
+主从读写分离策略的配置：
+
+```java
+@Bean
+public LettuceClientConfigurationBuilderCustomizer configurationBuilderCustomizer() {
+    return configBuilder -> configBuilder.readFrom(ReadFrom.REPLICA_PREFERRED);
+}
+```
+
+以上的ReadFrom用于配置Redis的读取策略，是一个枚举，包括下面这些选项：
+
+- `MASTER`：从主节点读取；
+- `MASTER_PREFERRED`：优先从master节点读取，master不可用则从slave节点读取；
+- `REPLICA`：从slave节点读取；
+- `REPLICA_PREFERRED`：优先从slave节点读取，所有的slave都不可用再从master节点读取。
+
+> **说明**：Redis集群一般都是读写分离，master节点用于接收写操作，slave节点则用于接收读操作。所以在配置读取策略时，一般都是优先去slave节点读取数据以减轻master节点的压力。
 
 ##### 7.2.3 Redis分片集群
+
+使用Redis的分片集群将不再需要哨兵机制，因为其本身已经具备了哨兵机制的所有功能。
+
+###### 7.2.3.1 分片集群的结构
+
+主从集群和哨兵集群可以解决高可用、高并发读的问题。但是依然会存在以下两个问题：
+
+- 海量数据存储问题；
+- 高并发写的问题。
+
+使用分片集群则可以解决上述问题，分片集群的特征如下：
+
+- 集群中有多个master，每个master保存不同的数据；
+- 每个master都可以有多个slave节点；
+- 每个master之间通过ping监测彼此的健康状态；
+- 客户端请求可以访问集群的任意节点，最终都会被转发到正确的节点上。
+
+<img src="https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220123223212.png" alt="image-20220123214657462" style="zoom:84%;" /> 
+
+###### 7.2.3.2 分片集群的散列插槽
+
+Redis会把每一个master节点映射到0~16383共**16384**个插槽(hash slot)上，查看集群信息时就能看到，比如：
+
+![image-20220123215141619](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220123223224.png) 
+
+存到redis中的数据的key并不是与节点绑定，而是与插槽绑定。redis会根据key的有效部分计算插槽值，分两种情况：
+
+- key中包含"{}"，且"{}"中至少包含1个字符，"{}"中的部分是有效部分；
+- 如果key中不包含"{}"，则整个key都是有效部分。
+
+> **说明**：计算插槽的方式是根据key的有效部分通过CRC16算法先得到一个hash值，然后对16384取余，余数将会被作为插槽。每个redis节点都会有一个插槽范围，插槽在这个范围内，对应的key就会被存到这个实例上。
+
+###### 7.2.3.3 分片集群的故障转移
+
+在redis的分片集群中，也是可以实现自动故障转移的，如果有一个master节点宕机了，会有如下现象：
+
+1. 首先是该实例与其它实例会失去连接；
+
+2. 然后是疑似宕机，如下所示：
+
+   ![image-20220123221010432](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220123223233.png) 
+
+3. 最后是确定下线，并自动提升一个slave为新的master节点，如下所示：
+
+   ![image-20220123221110948](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220123223253.png) 
+
+我们也可以在slave节点上使用`cluster failover`命令手动让集群中的某个master宕机，这时候执行该命令的slave节点就会变成master节点，宕机的master节点就会变成slave节点，并实现无感知的数据迁移。其流程如下：
+
+![image-20220123221916130](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220123223352.png) 
+
+手动的Failover支持三种不同的模式：
+
+- `缺省`：这个是默认的模式；
+- `force`：这种模式省略了对offset的一致性校验；
+- `takeover`：相当于直接执行上图的第5步，忽略数据一致性、忽略master状态和其它master的意见。
+
+###### 7.2.3.4 RedisTemplate访问分片集群
+
+RedisTemplate底层同样基于lettuce实现了分片集群的支持，使用的步骤与哨兵模式基本一致。与哨兵模式相比，其中只有分片集群的配置方式略有差异，分片集群在application.yml中的配置如下：
+
+```yaml
+spring:
+  redis:
+    cluster:
+      nodes:  # 指定分片集群中每一个节点的信息
+        - 192.168.68.10:8001
+        - 192.168.68.10:8002
+        - 192.168.68.10:8003
+        - 192.168.68.11:8001
+        - 192.168.68.11:8002
+        - 192.168.68.11:8003
+```
+
+> **说明**：分片集群中的每一个节点都是实际使用的redis的节点，所以在配置的时候直接配置redis的节点信息即可，而不是像哨兵集群那样配置哨兵集群的节点信息。
+
+#### 7.3 Redis的分布式锁
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

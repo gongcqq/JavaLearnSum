@@ -1531,6 +1531,280 @@ jdk的版本不同，类加载器可能会有不同，所以这里就以java8为
 - 无法判断是否发生错误，执行finalize方法时，其底层会吞掉任意异常(Throwable)；
 - 内存释放不及时，重写了 finalize 方法的对象在第一次被 gc 时，并不能及时释放它占用的内存，因为要等着FinalizerThread调用完finalize，把它从unfinalized队列移除后，第二次gc时才能真正释放内存。
 
+#### 3.8 JVM命令行工具
+
+##### 3.8.1 jps命令
+
+jps命令是用于显示java进程的相关信息的，主要包含以下几个常见参数：
+
+- `-q`：只显示进程id；
+- `-l`：输出应用程序主类的全类名，如果进程执行的是jar包，则输出jar包的完整路径；
+- `-m`：输出虚拟机进程启动时传递给主类的参数；
+- `-v`：累出虚拟机进程启动时的jvm参数，比如-XXms500m、-Xmx500m等。
+
+![image-20220125182715916](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220127161509.png) 
+
+##### 3.8.2 jstat命令
+
+jstat命令有很多参数选项，这里主要介绍如下几种：
+
+- ==-class==：显示ClassLoader的相关信息，比如`jstat -class 126496 1000 5`命令：
+
+  ![image-20220125213311518](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220127161516.png) 
+
+- ==-gc==：显示与GC相关的堆信息，比如`jstat -gc -t 126496 1000 5`命令：
+
+  ![image-20220125214025926](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220127161522.png) 
+
+- ==-gccause==：能输出导致最后一次或当前正在发生的GC产生的原因，比如`jstat -gccause 126496 1000 5`命令：
+
+  ![image-20220126124802467](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220127161528.png) 
+
+我们可以根据GCT列推断是否可能发生内存溢出。我们可以使用jstat命令每隔10秒打印一次记录，然后观察每条记录之间GCT列的差值，差值即表示GC总时间的增量，如果有差值大于2秒，说明GC的时间占运行时间的比例大于20%，这表明目前堆内存压力较大；如果两条记录之间的差值大于8秒，说明GC的时间占运行时间的比例大于80%，这意味着堆中几乎没有可用空间了，随时可能抛出OOM异常。
+
+下面就演示下内存溢出的情况，并观察GCT列的数据变化。对应的java代码如下：
+
+```java
+/**
+ * 模拟内存溢出
+ */
+@GetMapping("/memory/out")
+public String leak() {
+    log.info("模拟内存溢出...");
+    ThreadLocal<Byte[]> localVariable = new ThreadLocal<Byte[]>();
+    localVariable.set(new Byte[4096 * 1024]);// 为线程添加变量
+    return "ok";
+}
+```
+
+为了演示内存溢出，在启动java项目的时候先分配一下内存，如下所示：
+
+```bash
+java -jar -Xms500m -Xmx500m home-1.0-SNAPSHOT.jar
+```
+
+项目启动后，使用如下命令进行重复调用，增加压力，以便能够出现内存溢出的情况：
+
+```bash
+for i in {1..100}; do curl http://localhost:8080/memory/out;echo "";done
+```
+
+项目日志中出现如下报错，说明发生了内存溢出：
+
+```bash
+Handler dispatch failed; nested exception is java.lang.OutOfMemoryError: Java heap space
+```
+
+![image-20220126131532505](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220127161537.png) 
+
+通过`jstat -gccause 71826 10000`命令(71826是java项目的进程id)实时观察GC的情况，每10秒展示一条记录。可以发现，在出现内存溢出的时候，Full GC次数和GC花费的时间陡然剧增，垃圾回收的时间已经，如下图：
+
+![image-20220126134703770](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220127161545.png) 
+
+##### 3.8.3 jmap命令
+
+使用jmap命令可以生成堆转储快照文件，通过`-dump`参数即可生成对应的dump文件，命令如下：
+
+```bash
+# format=b表示生成的是二进制的文件，file后跟的是文件名，pid是java项目的进程id
+jmap -dump:format=b,file=<filename> <pid>
+
+# 下面多加一个live后，和上面命令的区别是，生成的dump文件中只会保存堆中的存活对象
+jmap -dump:live,format=b,file=<filename> <pid>
+```
+
+比如使用`jmap -dump:live,format=b,file=/root/home/dumpfile.hprof 110568`命令生成一个dump文件：
+
+![image-20220126154017580](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220127161553.png) 
+
+如果我们想要在内存溢出时自动生成dump文件，可以在启动项目时，增加如下两个参数：
+
+```bash
+-XX:+HeapDumpOnOutOfMemoryError 
+-XX:HeapDumpPath
+```
+
+![image-20220126155614235](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220127161602.png) 
+
+然后通过某种方式让进程产生OOM异常，之后发现在当前路径下确实自动生成了我们指定文件名的dump文件，如下所示：
+
+![image-20220126155856411](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220127161610.png) 
+
+> **说明**：生产环境下，dump文件一般都会比较大，使用自动生成dump文件的方式可能会有文件，所以要慎用。
+
+我们还可以使用`-heap`参数输出整个堆空间的详细信息，包括GC的使用、堆配置信息以及内存的使用信息等，命令如下：
+
+```bash
+# pid是java项目的进程id
+jmap -heap <pid>
+```
+
+比如使用`jmap -heap 110568`命令获取对应进程id的整个堆空间的详细信息，如下所示：
+
+![image-20220126155042765](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220127161616.png) 
+
+##### 3.8.4 jstack命令
+
+使用jmap命令可以生成堆转储快照，而jstack命令则用于生成虚拟机当前时刻的线程快照，线程快照就是当前虚拟机内每一条线程正在执行的方法堆栈的集合。
+
+生成线程快照的目的主要是定位线程长时间出现停顿的原因，如线程间死锁、死循环、请求外部资源导致的长时间等待等都是导致线程长时间停顿的原因。线程出现停顿的时候通过`jstack`来查看各个线程的调用堆栈，就可以知道没有响应的线程到底在后台做些什么事情，或者在等待些什么资源。
+
+jstack的常规使用方式就是`jstack <pid>`，pid就是我们项目的进程id，我们还可以使用`jstack -l <pid>`命令，使用`-l`参数后，除堆栈外，还可以显示关于锁的附加信息。为了深入理解jstack的用法，下面模拟两个异常的场景，并通过jstack命令去排查和定位原因。
+
+###### 3.8.4.1 jstack排查死锁问题
+
+下面通过java代码模拟线程死锁问题，对应的代码如下：
+
+```java
+/**
+ * 模拟死锁
+ */
+@GetMapping("/thread/lock")
+public String testLock() {
+    log.info("模拟死锁...");
+    new Thread(() -> {
+        synchronized (resource1) {
+            log.info(Thread.currentThread() + "get resource1");
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            log.info(Thread.currentThread() + "waiting get resource2");
+            synchronized (resource2) {
+                log.info(Thread.currentThread() + "get resource2");
+            }
+        }
+    }, "thread-1").start();
+
+    new Thread(() -> {
+        synchronized (resource2) {
+            log.info(Thread.currentThread() + "get resource2");
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            log.info(Thread.currentThread() + "waiting get resource1");
+            synchronized (resource1) {
+                log.info(Thread.currentThread() + "get resource1");
+            }
+        }
+    }, "thread-2").start();
+    return "ok";
+}
+```
+
+通过`java -jar home-1.0-SNAPSHOT.jar`命令运行项目代码包后，可通过如下命令进行访问：
+
+```bash
+curl http://localhost:8080/thread/lock
+```
+
+访问成功后，其实基本就已经出现了死锁，先使用`jps -l`命令查看进程id，我这边的进程id是**26342**，然后我们就可以使用`jstack 26342`命令打印线程快照信息了，打印出来的部分线程快照信息如下：
+
+```bash
+2022-01-26 17:29:07
+Full thread dump Java HotSpot(TM) 64-Bit Server VM (25.231-b11 mixed mode):
+
+"Attach Listener" #32 daemon prio=9 os_prio=0 tid=0x00007f595c001000 nid=0x6a8c waiting on condition [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"thread-2" #31 daemon prio=5 os_prio=0 tid=0x0000000002359000 nid=0x69d6 waiting for monitor entry [0x00007f59514d0000]
+   java.lang.Thread.State: BLOCKED (on object monitor)
+        at com.gongsl.controller.HelloController.lambda$testLock$1(HelloController.java:84)
+        - waiting to lock <0x00000000e13ff788> (a java.lang.Object)
+        - locked <0x00000000e13ff778> (a java.lang.Object)
+        at com.gongsl.controller.HelloController$$Lambda$627/799446959.run(Unknown Source)
+        at java.lang.Thread.run(Thread.java:748)
+
+"thread-1" #30 daemon prio=5 os_prio=0 tid=0x0000000002350000 nid=0x69d5 waiting for monitor entry [0x00007f59515d1000]
+   java.lang.Thread.State: BLOCKED (on object monitor)
+        at com.gongsl.controller.HelloController.lambda$testLock$0(HelloController.java:69)
+        - waiting to lock <0x00000000e13ff778> (a java.lang.Object)
+        - locked <0x00000000e13ff788> (a java.lang.Object)
+        at com.gongsl.controller.HelloController$$Lambda$626/247239777.run(Unknown Source)
+        at java.lang.Thread.run(Thread.java:748)
+
+......
+
+Found one Java-level deadlock:
+=============================
+"thread-2":
+  waiting to lock monitor 0x00007f59640062c8 (object 0x00000000e13ff788, a java.lang.Object),
+  which is held by "thread-1"
+"thread-1":
+  waiting to lock monitor 0x00007f5964002178 (object 0x00000000e13ff778, a java.lang.Object),
+  which is held by "thread-2"
+
+Java stack information for the threads listed above:
+===================================================
+"thread-2":
+        at com.gongsl.controller.HelloController.lambda$testLock$1(HelloController.java:84)
+        - waiting to lock <0x00000000e13ff788> (a java.lang.Object)
+        - locked <0x00000000e13ff778> (a java.lang.Object)
+        at com.gongsl.controller.HelloController$$Lambda$627/799446959.run(Unknown Source)
+        at java.lang.Thread.run(Thread.java:748)
+"thread-1":
+        at com.gongsl.controller.HelloController.lambda$testLock$0(HelloController.java:69)
+        - waiting to lock <0x00000000e13ff778> (a java.lang.Object)
+        - locked <0x00000000e13ff788> (a java.lang.Object)
+        at com.gongsl.controller.HelloController$$Lambda$626/247239777.run(Unknown Source)
+        at java.lang.Thread.run(Thread.java:748)
+
+Found 1 deadlock.
+```
+
+> **说明**：通过以上的线程快照信息可以发现，是**thread-1**和**thread-2**这两个线程发生了死锁。
+
+###### 3.8.4.2 jstack排查CPU占满问题 
+
+下面通过java代码模拟CPU占满问题，对应的代码如下：
+
+```java
+/**
+ * 模拟CPU占满
+ */
+@GetMapping("/cpu/loop")
+public void testCPULoop(){
+    log.info("模拟CPU占满...");
+    Thread.currentThread().setName("loop-thread-cpu");
+    int num = 0;
+    while (true) {
+        num++;
+        if (num == Integer.MAX_VALUE) {
+            log.info("reset...");
+        }
+        num = 0;
+    }
+}
+```
+
+通过`java -jar home-1.0-SNAPSHOT.jar`命令运行项目代码包后，可通过如下命令进行访问：
+
+```bash
+curl http://localhost:8080/cpu/loop
+```
+
+访问成功后，使用`top`命令查看CPU的使用情况：
+
+![image-20220127152319548](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220127161631.png) 
+
+通过上图可以发现，进程**89951**对应的java应用的CPU已经飙到190%了，肯定是有问题的。下面再看下这个进程对应的线程情况，可以使用`top -Hp 89951`命令，结果如下所示：
+
+![image-20220127152743799](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220127161637.png) 
+
+接下来使用jstack命令查看线程dump快照中线程id为**89970**的线程正在执行的代码行，如下所示：
+
+```bash
+# 使用"printf "%x" 89970"命令是为了获取16进制的线程id
+jstack 89951|grep -A5 $(printf "%x" 89970)
+```
+
+![image-20220127153131464](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220127161644.png) 
+
+> **说明**：通过以上截图可知，已经定位出CPU占满的原因了，我们只需要对相应的代码进行问题分析即可。
+
 ### 4.Spring篇
 
 #### 4.1 Spring的IOC和AOP
@@ -2968,7 +3242,7 @@ public class TestLock {
 
 > **说明**：以上代码中的Lua脚本是直接从redis官网粘贴过来的，我们也可以直接到[官网](https://redis.io/commands/set)中进行查看。其实针对redis的分布式锁有一个专门的[Redisson](https://github.com/redisson/redisson/wiki/8.-%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E5%92%8C%E5%90%8C%E6%AD%A5%E5%99%A8)框架，我们也可以通过这个框架实现分布式锁的效果。
 
-### 8.调优篇
+### 9.算法篇
 
 
 
@@ -2981,22 +3255,6 @@ public class TestLock {
 
 
 
-
-
-
-### 9.微服务篇
-
-
-
-
-
-### 10.算法篇
-
-
-
-
-
-### 11.人事篇
 
 
 

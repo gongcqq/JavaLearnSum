@@ -3734,29 +3734,163 @@ public class SelectionSort {
 
 > **说明**：选择排序法一般要快于冒泡排序法，因为其交换次数少；但如果集合有序度高，则冒泡排序优于选择排序。
 
-#### 10.4 
+#### 10.4 插入排序法
 
+相关代码如下所示：
 
+```java
+package com.gongsl.test.array;
 
+import java.util.Arrays;
 
+/**
+ * @Author: gongsl
+ * @Date: 2022-02-04 11:43
+ */
+public class InsertionSort {
+    public static void main(String[] args) {
+        int[] array = {5, 7, 3, 4, 2, 6, 8, 9};
+        insertionSort(array);
+        System.out.println("最终结果：" + Arrays.toString(array));
+    }
 
+    public static void insertionSort(int[] arr) {
+        for (int i = 1; i < arr.length; i++) {
+            int t = arr[i]; // 代表待插入的元素值
+            int j = i - 1; // 代表已排序区域的元素索引
+            while (j >= 0) {
+                if (t < arr[j]) {
+                    arr[j + 1] = arr[j];
+                } else {
+                    break; // 退出循环，减少比较次数
+                }
+                j--;
+            }
+            arr[j + 1] = t;
+        }
+    }
+}
+```
 
+> **说明**：大部分情况下，插入排序是优于选择排序和冒泡排序的；另外，对于有序集合，插入排序效率更高。
 
+#### 10.5 快速排序法
 
+##### 10.5.1 单边循环快排
 
+相关代码如下所示：
 
+```java
+package com.gongsl.test.array;
 
+import java.util.Arrays;
 
+/**
+ * @Author: gongsl
+ * @Date: 2022-02-04 19:08
+ */
+public class QuickSort {
+    public static void main(String[] args) {
+        int[] array = {5, 7, 3, 4, 2, 6, 8, 9};
+        quickSort(array, 0, array.length - 1);
+        System.out.println("最终结果：" + Arrays.toString(array));
+    }
 
+    public static void quickSort(int[] arr, int l, int h) {
+        if (l >= h) {
+            return;
+        }
+        //返回值代表了基准点元素所在的正确索引，用它确定下一轮分区的边界
+        int p = partition(arr, l, h);
+        //左边分区的范围确定
+        quickSort(arr, l, p - 1);
+        //右边分区的范围确定
+        quickSort(arr, p + 1, h);
+    }
 
+    public static int partition(int[] arr, int l, int h) {
+        int pv = arr[h]; // 基准点元素
+        int i = l;
+        for (int j = l; j < h; j++) {
+            if (arr[j] < pv) {
+                if (i != j) {
+                    int temp = arr[i];
+                    arr[i] = arr[j];
+                    arr[j] = temp;
+                }
+                i++;
+            }
+        }
+        if (i != h) {
+            int temp = arr[h];
+            arr[h] = arr[i];
+            arr[i] = temp;
+        }
+        return i;
+    }
+}
+```
 
+##### 10.5.2 双边循环快排
 
+相关代码如下所示：
 
+```java
+package com.gongsl.test.array;
 
+import java.util.Arrays;
 
+/**
+ * @Author: gongsl
+ * @Date: 2022-02-04 19:08
+ */
+public class QuickSort {
+    public static void main(String[] args) {
+        int[] array = {5, 7, 9, 4, 2, 6, 8, 3};
+        quickSort(array, 0, array.length - 1);
+        System.out.println("最终结果：" + Arrays.toString(array));
+    }
 
+    public static void quickSort(int[] arr, int l, int h) {
+        if (l >= h) {
+            return;
+        }
+        //返回值代表了基准点元素所在的正确索引，用它确定下一轮分区的边界
+        int p = partition(arr, l, h);
+        //左边分区的范围确定
+        quickSort(arr, l, p - 1);
+        //右边分区的范围确定
+        quickSort(arr, p + 1, h);
+    }
 
+    public static int partition(int[] arr, int l, int h) {
+        int pv = arr[l]; // 基准点元素
+        int i = l;
+        int j = h;
+        while (i < j) {
+            //j从右往左找小的
+            while (i < j && arr[j] > pv) {
+                j--;
+            }
+            //i从左往右找大的
+            while (i < j && arr[i] <= pv) {
+                i++;
+            }
+            int temp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = temp;
+        }
+        int temp = arr[l];
+        arr[l] = arr[j];
+        arr[j] = temp;
+        return j;
+    }
+}
+```
 
+**注意事项：**
 
-
+- 单边循环的快速排序法是选择最右边的元素作为基准点元素的；
+- 双边循环的快速排序法是选择最左边的元素作为基准点元素的；
+- 在数据量较大时，使用快速排序法的优势是非常明显的。
 

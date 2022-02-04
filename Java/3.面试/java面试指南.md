@@ -2344,11 +2344,11 @@ B+树是B树的变体，也是一种多路搜索树，如下图所示：
 
 我们可以使用`show engines;`命令查看mysql支持的存储引擎以及默认使用的存储引擎：
 
-![image-20220107172710622](D:\Program Files (x86)\Typora\images\java面试指南\image-20220107172710622.png) 
+![image-20220107172710622](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220204201730.png) 
 
 我们也可以直接使用`show variables like '%default_storage_engine%';`命令查看默认的存储引擎：
 
-![image-20220107173017552](D:\Program Files (x86)\Typora\images\java面试指南\image-20220107173017552.png) 
+![image-20220107173017552](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220204201736.png) 
 
 ##### 5.3.2 常见的存储引擎
 

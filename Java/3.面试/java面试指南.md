@@ -2443,7 +2443,7 @@ MyISAM既不支持事务、也不支持外键，其优势是访问速度快，�
 
 数据库加锁的背景其实是事务并发问题，而mysql的默认隔离级别是**可重复读**，前面讲Spring事务的时候也有提到过，事务涉及的内容都是差不多的，所以这里就不再赘述了，我们也可以使用`show variables like '%tx_isolation%';`命令直接到mysql中进行查询，也可以查到隔离级别，如下所示：
 
-![image-20220107225113087](D:\Program Files (x86)\Typora\images\java面试指南\image-20220107225113087.png) 
+![image-20220107225113087](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220208144003.png) 
 
 相对其他数据库而言，MySQL的锁机制比较简单，其最显著的特点是不同的存储引擎支持不同的锁机制。下表是常见存储引擎对锁的支持情况： 
 

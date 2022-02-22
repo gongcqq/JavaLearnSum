@@ -1752,7 +1752,7 @@ jps命令是用于显示java进程的相关信息的，主要包含以下几个�
 - `-q`：只显示进程id；
 - `-l`：输出应用程序主类的全类名，如果进程执行的是jar包，则输出jar包的完整路径；
 - `-m`：输出虚拟机进程启动时传递给主类的参数；
-- `-v`：累出虚拟机进程启动时的jvm参数，比如-XXms500m、-Xmx500m等。
+- `-v`：累出虚拟机进程启动时的jvm参数，比如-Xms500m、-Xmx500m等。
 
 ![image-20220125182715916](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220127161509.png) 
 

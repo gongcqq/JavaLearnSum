@@ -2088,7 +2088,7 @@ Spring事务主要有以下五种隔离级别：
 - `READ_UNCOMMITTED`(读未提交)：一个事务可以感知或者操作另外一个未提交的事务，该级别可能会出现脏读、不可重复读、幻读等问题；
 - `READ_COMMITTED`(读已提交)：一个事务只能感知或者操作另一个已经提交的事务，可能会出现不可重复读、幻读；
 - `REPEATABLE_READ`(可重复读)：表示对同一字段的多次读取结果都是一致的，该级别能够避免脏读、不可重复读，但是不能避免幻读；
-- `SERIALIZABLE`(串行化)：这个是最高的隔离级别，该隔离级别可以避免所有因并发导致的脏读、不可重复读、幻读等问题，但是性能较低。
+- `SERIALIZABLE`(串行化)：这个是最高的隔离级别，该隔离级别可以避免所有因并发导致的脏读、不可重复读、幻读等问题，但是由于底层是通过锁机制去解决的，所以性能较低。
 
 如果我们项目中使用的是`@Transactional`注解的话，可以通过该注解中的参数设置传播机制和隔离级别，案例如下：
 
@@ -2282,7 +2282,8 @@ SpringBoot中的常用注解如下：
 - 更新频繁的列不应设置索引；
 - 数据量小的表不要使用索引；
 - 重复数据多的字段不应设为索引(比如性别，只有男和女，一般来说，重复的数据超过百分之15就不该建索引)；
-- 首先应该考虑对where和order by涉及的列上建立索引。
+- 首先应该考虑对where后涉及的列建立索引；
+- 在多个字段都要创建索引的情况下，联合索引优于单值索引。
 
 ##### 5.2.2 索引的优缺点
 
@@ -2357,16 +2358,18 @@ B+树是B树的变体，也是一种多路搜索树，如下图所示：
 
 `聚簇索引`(clustered index)不是单独的一种索引类型，而是一种数据存储方式。这种存储方式是依靠B+树来实现的，根据表的主键构造一棵B+树且B+树叶子节点存放的都是表的行记录数据时，方可称该主键索引为聚簇索引。聚簇索引也可理解为将数据存储与索引放到了一块，找到索引也就找到了数据。
 
-`非聚簇索引`(也叫辅助索引或二级索引)的数据和索引是分开的，B+树叶子节点存放的不是数据表的行记录，而是指针这些信息，然后再通过指针等信息找到对应的表的行记录，即表数据。
+`非聚簇索引`(也叫辅助索引或二级索引)的数据和索引是分开的，B+树叶子节点存放的不是完整的数据行记录，而是指针等信息，想要获取完整的表数据，还需要通过回表操作到聚簇索引的B+树上进行寻找。
 
 虽然InnoDB和MyISAM存储引擎都默认使用B+树结构存储索引，但是只有InnoDB的主键索引才是聚簇索引，InnoDB中的辅助索引以及MyISAM使用的都是非聚簇索引。一个表中只能存在一个聚簇索引(主键索引)，但可以存在多个非聚簇索引。
+
+一个表之所以只能存在一个聚簇索引，也是为了防止数据的冗余。毕竟如果表字段很多的话，数据量大时，是很占空间的，如果每个索引都保留一份完整的表数据，这将是对空间的极大消耗。
 
 **聚簇索引的优缺点：**
 
 **优点：**
 
 - 数据访问更快，因为聚簇索引将索引和数据保存在同一个B+树中，因此从聚簇索引中获取数据比非聚簇索引更快；
-- 聚簇索引对于主键的排序查找和范围查找速度非常快；
+- 聚簇索引对于主键的排序查找和范围查找速度非常快。
 
 **缺点：**
 
@@ -2374,6 +2377,39 @@ B+树是B树的变体，也是一种多路搜索树，如下图所示：
 - 更新主键的代价很高，因为将会导致被更新的行移动，因此，对于InnoDB表，我们一般定义主键为不可更新。
 
 > **说明**：网上还会有`密集索引`和`稀疏索引`的说法，密集索引就可以理解成是聚簇索引，而稀疏索引则可以理解成是非聚簇索引。
+
+##### 5.2.6 回表和覆盖索引
+
+上文提到InnoDB引擎下的聚簇索引只能有一个，而且一般是主键。其它的索引都是非聚簇索引，非聚集索引的B+树叶子节点并不直接存储表中的数据，而是存储该列对应的主键。想要查找数据，我们还需要根据主键再去聚集索引对应的B+树中进行查找，这个二次查找的过程，就叫做==回表==。
+
+通过以上`回表`的定义可知，获取数据需要查两棵B+树，而通过索引项的信息可以直接返回所查询的列(即只查一棵B+树)的索引，称为查询SQL的==覆盖索引==。
+
+###### 5.2.6.1 如何避免回表
+
+可以通过以下方式避免回表：
+
+- 直接使用聚簇索引进行查询；
+- 将单列索引设置为联合索引。
+
+###### 5.2.6.2 实战演练
+
+假设有一个使用InnoDB引擎的user表，表中包含id、name、age、phone四个字段，其中`id`是**主键**，`name、age`是一个**联合索引**，`phone`是一个**唯一索引**，那么下面哪个SQL的执行效率最高？
+
+```sql
+1. select * from user where phone = ?
+2. select name,phone from user where phone = ?
+3. select name,phone from user where name = ?
+4. select id,age from user where name = ?
+```
+
+**答案**：==第四条SQL的执行效率最高==。
+
+**原因分析：**
+
+- 第一条sql的select后面用的是*号，表明是要查询所有字段，phone是一个唯一索引，对应的B+树上是没有name和age的信息的，所以需要通过id到聚簇索引对应的B+树上找到name、age对应的数据，这个过程进行了回表，查询了两棵B+树；
+- 第二条sql和第一条一样的，想要获取name的数据，也是需要回表查询两棵B+树的；
+- 第三条sql和前两条类似，想要获取phone的数据，同样需要回表查询两棵B+树；
+- 由于name和age是使用的联合索引，所以该索引对应的B+树上就有name和age的信息，而每个非聚簇索引的B+树上都会存储主键的信息，所以第四条sql想要获取id和age的信息就只用查自己的这一棵树就可以了，不用再回表到聚簇索的B+树上查对应数据了，所以执行效率是最高的。
 
 #### 5.3 mysql存储引擎
 
@@ -2449,6 +2485,8 @@ MyISAM既不支持事务、也不支持外键，其优势是访问速度快，�
 - 不支持外键；
 - 读取速度快。
 
+> **说明**：MyISAM引擎是没有聚簇索引的说法的，它的索引文件仅仅保存数据记录的地址，然后再根据地址到数据存储的文件中找到具体的数据。
+
 ###### 5.3.3.3 Memory引擎
 
 在内存中创建表。每个MEMORY表只实际对应一个磁盘文件(frm表结构文件)。MEMORY类型的表访问非常快，因为它的数据是放在内存中的，并且默认使用HASH索引。
@@ -2496,7 +2534,7 @@ MyISAM既不支持事务、也不支持外键，其优势是访问速度快，�
 
 MySQL这3种锁的特性可大致归纳如下 ：
 
-| 锁类型   | 特点                                                         |
+| 锁的类型 | 特点                                                         |
 | -------- | ------------------------------------------------------------ |
 | `表级锁` | 偏向MyISAM存储引擎，开销小，加锁快；不会出现死锁；锁定粒度大，发生锁冲突的概率最高，并发度最低。 |
 | `行级锁` | 偏向InnoDB存储引擎，开销大，加锁慢；会出现死锁；锁定粒度最小，发生锁冲突的概率最低，并发度也最高。 |
@@ -2534,7 +2572,7 @@ InnoDB存储引擎由于实现了行级锁定，虽然在锁定机制的实现�
 
 **优化建议：**
 
-- 尽可能让所有数据检索都能通过索引来完成，避免无索引行锁升级为表锁；
+- 尽可能让所有数据检索都能通过索引来完成，因为InnoDB的行锁是针对索引加的锁，不是针对记录加的锁，所以不使用索引或者索引失效，都会使`行锁升级为表锁`；
 - 合理设计索引，尽量缩小锁的范围；
 - 尽可能减少索引条件及索引范围，避免间隙锁；
 - 尽量控制事务大小，减少锁定资源量和时间长度；
@@ -2637,59 +2675,135 @@ CREATE TABLE `student` (
   `id` int(11) NOT NULL AUTO_INCREMENT COMMENT '主键',
   `name` varchar(32) DEFAULT NULL COMMENT '姓名',
   `age` int(11) DEFAULT NULL COMMENT '年龄',
-  `chinese` int(11) DEFAULT NULL COMMENT '语文',
-  `math` int(11) DEFAULT NULL COMMENT '数学',
-  `english` int(11) DEFAULT NULL COMMENT '英语',
+  `a` int(11) DEFAULT NULL COMMENT 'A',
+  `b` int(11) DEFAULT NULL COMMENT 'B',
+  `c` int(11) DEFAULT NULL COMMENT 'C',
   PRIMARY KEY (`id`),
-  KEY `union_index` (`chinese`,`math`,`english`)
+  KEY `union_index` (`a`,`b`,`c`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 ```
+
+> **说明**：以上的建表语句中，我们虽然是针对`a、b、c`这三个字段建立的一个联合索引，但其实相当于是对`a`、`a、b`以及`a、b、c`都建立了索引。
 
 然后再在表中添加几条数据，如下所示：
 
 ```sql
-insert into `student` (`name`, `age`, `chinese`, `math`, `english`) values('Tom','18','85','78','92');
-
-insert into `student` (`name`, `age`, `chinese`, `math`, `english`) values('Lucy','20','86','88','90');
-
-insert into `student` (`name`, `age`, `chinese`, `math`, `english`) values('Mark','20','92','68','83');
+insert into `student` (`name`, `age`, `a`, `b`, `c`) values('Tom','18','85','78','92');
+insert into `student` (`name`, `age`, `a`, `b`, `c`) values('Lucy','20','86','88','90');
+insert into `student` (`name`, `age`, `a`, `b`, `c`) values('Mark','20','92','68','83');
 ```
 
-**包含联合索引所有字段查询时：**
+数据添加完成后，通过`select * from student;`命令查到的结果如下所示：
+
+```xml
++----+------+------+------+------+------+
+| id | name | age  | a    | b    | c    |
++----+------+------+------+------+------+
+|  1 | Tom  |   18 |   85 |   78 |   92 |
+|  2 | Lucy |   20 |   86 |   88 |   90 |
+|  3 | Mark |   20 |   92 |   68 |   83 |
++----+------+------+------+------+------+
+```
+
+###### 5.5.3.1 联合索引中只包含等号时
+
+下面sql中具体有几个字段用到了索引，以及用不到索引，我都会使用`yes`或者`no`进行标记，比如有几个yes就表明有几个字段用到了索引。
 
 ```sql
-explain select * from student where chinese=86 and math=88 and english=90;
-explain select * from student where math=88 and chinese=86 and english=90;
-explain select * from student where english=90 and math=88 and chinese=86;
+# 符合最左匹配原则，可以使用到索引[yes]
+explain select * from student where a=86;
+# 不符合最左匹配原则，不能使用到索引[no]
+explain select * from student where b=88;
+# 不符合最左匹配原则，不能使用到索引[no]
+explain select * from student where c=90;
+
+# 符合最左匹配原则，可以使用到索引[yes,yes]
+explain select * from student where a=86 and b=88;
+# 符合最左匹配原则，但是只能使用到第一个索引[yes]
+explain select * from student where a=86 and c=90;
+# 不符合最左匹配原则，不能使用到索引[no,no]
+explain select * from student where b=88 and c=90;
+
+# 符合最左匹配原则，可以使用到索引[yes,yes,yes]
+explain select * from student where a=86 and b=88 and c=90;
+# 符合最左匹配原则，可以使用到索引，查询优化器，会自动优化查询顺序[yes,yes,yes]
+explain select * from student where b=88 and a=86 and c=90;
+# 符合最左匹配原则，可以使用到索引，查询优化器，会自动优化查询顺序[yes,yes,yes]
+explain select * from student where c=90 and b=88 and a=86; 
 ```
 
-![image-20220108212116945](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220109002640.png) 
+![image-20220305140801773](D:\Program Files (x86)\Typora\images\java面试指南\image-20220305140801773.png) 
 
-> **结论**：由以上截图可知，用到了索引，where子句后的条件顺序调换不影响查询结果，因为mysql中有查询优化器，会自动优化查询顺序。
+![image-20220305141114616](D:\Program Files (x86)\Typora\images\java面试指南\image-20220305141114616.png) 
 
-**包含联合索引第一个字段查询时：**
+![image-20220305141316592](D:\Program Files (x86)\Typora\images\java面试指南\image-20220305141316592.png) 
+
+###### 5.5.3.2 联合索引中包含非等号时
 
 ```sql
-explain select * from student where chinese=86;
-explain select * from student where chinese=86 and math=88;
-explain select * from student where chinese=86 and english=90;
+# 不能使用到索引[no]
+explain select * from student where a != 86;
+# 可以使用到索引[yes]
+explain select * from student where a > 86;
+# 符合最左匹配原则，可以使用到索引[yes,yes]
+explain select * from student where a = 86 and b > 88;
+
+# 符合最左匹配原则，可以使用到索引[yes]
+explain select * from student where a = 86 and c > 90;
+# 符合最左匹配原则，可以使用到索引[yes]
+explain select * from student where a > 86 and b = 88;
+# 符合最左匹配原则，可以使用到索引[yes]
+explain select * from student where a > 86 and b > 88;
+
+# 符合最左匹配原则，可以使用到索引[yes]
+explain select * from student where a > 86 and c = 90;
+# 不符合最左匹配原则，不能使用到索引[no,no]
+explain select * from student where b > 88 and c = 90;
+# 符合最左匹配原则，可以使用到索引[yes,yes]
+explain select * from student where a = 86 and b > 88 and c = 90;
+
+# 符合最左匹配原则，可以使用到索引[yes,yes,yes]
+explain select * from student where a = 86 and b = 88 and c > 90;
+# 符合最左匹配原则，可以使用到索引[yes]
+explain select * from student where a > 86 and b = 88 and c = 90;
+# 符合最左匹配原则，可以使用到索引[yes]
+explain select * from student where a > 86 and b > 88 and c = 90;
 ```
 
-![image-20220108213044458](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220109002651.png) 
+![image-20220305145426515](D:\Program Files (x86)\Typora\images\java面试指南\image-20220305145426515.png) 
 
-> **结论**：由上图可知，用到了索引，说明只要包含了联合索引的第一个字段，其他索引字段都使用的等号的话，就会用到索引。不过第三条语句中的两个字段不是联合索引中的连续字段，所以sql语句最终其实只用到了第一个字段的索引。
+![image-20220305145634275](D:\Program Files (x86)\Typora\images\java面试指南\image-20220305145634275.png) 
 
-**不包含联合索引第一个字段查询时：**
+![image-20220305145923619](D:\Program Files (x86)\Typora\images\java面试指南\image-20220305145923619.png) 
+
+![image-20220305150047668](D:\Program Files (x86)\Typora\images\java面试指南\image-20220305150047668.png) 
+
+###### 5.5.3.3 联合索引中使用到like时
+
+上面在演示时，`a、b、c`三个字段都是int类型，如果使用的是varchar类型的话，就可以使用like进行模糊匹配了，下面是使用like后索引的使用情况：
 
 ```sql
-explain select * from student where math=88;
-explain select * from student where english=90;
-explain select * from student where math=88 and english=90;
+# 不符合最左匹配原则，不能使用到索引[no,no,no]
+explain select * from student where a like '%8' and b = '88' and c = '90';
+# 符合最左匹配原则，可以使用到索引[yes,yes,yes]
+explain select * from student where a like '8%' and b = '88' and c = '90';
+# 符合最左匹配原则，可以使用到索引[yes,yes]
+explain select * from student where a like '8%' and b > '88' and c = '90';
+# 符合最左匹配原则，可以使用到索引[yes,yes]
+explain select * from student where a = '86' and b > '80' and c = '90';
+# 符合最左匹配原则，可以使用到索引[yes]
+explain select * from student where a = '86' and b like '%8' and c = '90';
+# 符合最左匹配原则，可以使用到索引[yes]
+explain select * from student where a = '86' and b like '%8' and c > '90';
+# 符合最左匹配原则，可以使用到索引[yes,yes,yes]
+explain select * from student where a = '86' and b like '8%' and c = '90';
 ```
 
-![image-20220108213726946](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220109002657.png) 
+![image-20220305173825957](D:\Program Files (x86)\Typora\images\java面试指南\image-20220305173825957.png) 
 
-> **结论**：由以上截图可知，where子句后的查询条件不包含联合索引的第一个字段时，都没有用到索引，都是全表扫描。
+![image-20220305173953113](D:\Program Files (x86)\Typora\images\java面试指南\image-20220305173953113.png) 
+
+> **说明**：如果我们不知道联合索引中具体哪些字段用到了索引的话，可以通过执行计划的`key_len`列的值进行估算。因为该列的值用于表示索引里使用的字节数，值越大肯定说明联合索引中用到索引的字段越多。像上面`key_len`列一共出现过99、198、297这三个值，这就对应着联合索引中一个字段用到了索引、两个字段用到了索引、三个字段用到了索引。
 
 ##### 5.5.4 索引失效的情况
 
@@ -2722,55 +2836,57 @@ select * from user where username='gsl';
 
 下面详细介绍几种索引失效的情况。
 
-1. **where语句中包含or时，可能会导致索引失效：**
+###### 5.5.4.1 where语句中包含or时，可能会导致索引失效
 
-   ![image-20220108234242173](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220109002721.png) 
+![image-20220108234242173](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220109002721.png) 
 
-   > **说明**：除非or关联的查询条件都是主键才会使用索引，否则都会进行全表扫描。
+> **说明**：除非or关联的查询条件都是主键才会使用索引，否则都会进行全表扫描。
 
-2. **like通配符可能会导致索引失效：**
+###### 5.5.4.2 使用like通配符可能会导致索引失效
 
-   ![image-20220108234908339](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220109002730.png) 
+![image-20220108234908339](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220109002730.png) 
 
-   > **说明**：当通配符在前面的时候，索引失效，进行全表扫描，通配符在后面的时候，索引不会失效。
+**结论**：当通配符在前面的时候，索引失效，进行全表扫描，通配符在后面的时候，索引不会失效。
 
-3. **在索引列上使用内置函数，一定会导致索引失效：**
+> **特殊情况**：如果一个表中只有主键和二级索引，通配符在前面，也是会用到索引的。比如一个表中有id和name两个字段，id是主键，name字段也加了索引，使用`where name like '%aaa%'`进行模糊查询时，还是会用到索引的，特此说明。
 
-   ![image-20220108235359392](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220109002737.png) 
+###### 5.5.4.3 在索引列上使用内置函数，一定会导致索引失效
 
-4. **隐式类型转换导致的索引失效：**
+![image-20220108235359392](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220109002737.png) 
 
-   ![image-20220108235638552](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220109002742.png) 
+###### 5.5.4.4 隐式类型转换导致的索引失效
 
-   > **说明**：像上面字段类型是字符串类型，但是该字段查询条件的值并没有加引号，就会触发隐式类型转换，从而导致索引失效。
+![image-20220108235638552](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220109002742.png) 
 
-5.  **where语句中索引列使用了负向查询，可能会导致索引失效：**
+> **说明**：像上面字段类型是字符串类型，但是该字段查询条件的值并没有加引号，就会触发隐式类型转换，从而导致索引失效。
 
-   ![image-20220109000110600](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220109002748.png) 
+###### 5.5.4.5 使用负向查询导致的索引失效
 
-   > **说明**：负向查询包括：NOT、!=、<>、!<、!>、NOT IN、NOT LIKE等。
+![image-20220109000110600](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220109002748.png) 
 
-6. **where条件中对索引列进行运算，一定会导致索引失效：**
+> **说明**：负向查询包括：NOT、!=、<>、!<、!>、NOT IN、NOT LIKE等。
 
-   ![image-20220109000612143](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220109002753.png) 
+###### 5.5.4.6 对索引列进行运算，一定会导致索引失效
 
-   > **说明**：在等号右边做运算是不会导致索引失效的，但是在等号左边做运算就可能会导致索引失效。
+![image-20220109000612143](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220109002753.png) 
 
-7. **联合索引下，查询条件不满足最左匹配原则，可能会导致索引失效：**
+> **说明**：在等号右边做运算是不会导致索引失效的，但是在等号左边做运算就可能会导致索引失效。
 
-   > **说明**：关于这一点，失效场景已经在前面**最左匹配原则**章节演示过了，这里就不再重复演示了。
+###### 5.5.4.7 联合索引下，不满足最左匹配原则导致的索引失效
 
-8. **使用is null或is not null时，可能会导致索引失效：**
+> **说明**：关于这一点，失效场景已经在前面**最左匹配原则**章节演示过了，这里就不再重复演示了。
 
-   ![image-20220109001508309](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220109002757.png) 
+###### 5.5.4.8 使用is not null导致的索引失效
 
-   > **说明**：通过本次测试结果看，使用**is not null**导致索引失效了，但是使用**is null**并没有导致索引失效。
+![image-20220109001508309](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220109002757.png) 
 
-9. **对索引字段排序，可能会导致索引失效：**
+> **说明**：通过本次测试结果看，使用**is not null**导致索引失效了，但是使用**is null**没有导致索引失效。
 
-   ![image-20220109002207654](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220109002803.png) 
+###### 5.5.4.9 对索引字段排序，可能会导致索引失效
 
-   > **说明**：对主键索引排序的话，还是会用到索引的，但是对别的索引列排序的话，就会导致索引失效，除非select后面跟的字段只有索引列字段。
+![image-20220109002207654](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220109002803.png) 
+
+> **说明**：对主键索引排序的话，还是会用到索引的，但是对别的索引列排序的话，就会导致索引失效，除非select后面跟的字段只有索引列字段。
 
 ##### 5.5.5 SQL的优化方案
 
@@ -2788,9 +2904,13 @@ SQL的优化包括但不限于以下方案：
 
 #### 5.6 什么是MVCC
 
-多版本并发控制(`MVCC`)：读取数据时通过一种类似快照的方式将数据保存下来，这样读锁和写锁就不冲突了，不同的事务session会看到自己特定版本的数据、版本链。
+多版本并发控制(`MVCC`)：读取数据时通过一种类似快照的方式将数据保存下来，这样读和写就不冲突了，并且不同的事务session看到的是自己特定版本的数据、版本链。
 
-MVCC只在**READ_COMMITTED(读已提交)**和**REPEATABLE_READ(可重复读)**两个隔离级别下工作。其他隔离级别和MVCC不兼容，因为**(READ_UNCOMMITTED)读未提交**总是读取最新的数据行，而不是符合当前事务版本的数据行，而**串行化**则会对所有读取的行都加锁。
+MVCC只在==READ_COMMITTED(读已提交)==和==REPEATABLE_READ(可重复读)==两个隔离级别下工作。其他隔离级别和MVCC不兼容，因为**(READ_UNCOMMITTED)读未提交**总是读取最新的数据行，而不是符合当前事务版本的数据行，而**串行化**则会对所有读取的行都加锁。
+
+需要注意的是，在**读已提交**的场景下，每读一次都会重新获取一次ReadView；在**可重复读**的场景下，只在第一次读取时才会生成ReadView。
+
+> **说明**：MVCC的实现主要依赖于`UndoLog`和`ReadView`。在MVCC机制中，多个事务对同一个行记录进行更新会产生多个历史快照，这些历史快照保存在UndoLog中，如果一个事务想要查询这个行记录，需要使用ReadView来确定具体读哪个版本的行记录，它帮我们解决了行的可见性问题。
 
 ### 6.Linux篇
 

@@ -2732,11 +2732,11 @@ explain select * from student where b=88 and a=86 and c=90;
 explain select * from student where c=90 and b=88 and a=86; 
 ```
 
-![image-20220305140801773](D:\Program Files (x86)\Typora\images\java面试指南\image-20220305140801773.png) 
+![image-20220305140801773](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220309181037.png) 
 
-![image-20220305141114616](D:\Program Files (x86)\Typora\images\java面试指南\image-20220305141114616.png) 
+![image-20220305141114616](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220309181043.png) 
 
-![image-20220305141316592](D:\Program Files (x86)\Typora\images\java面试指南\image-20220305141316592.png) 
+![image-20220305141316592](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220309181048.png) 
 
 ###### 5.5.3.2 联合索引中包含非等号时
 
@@ -2770,13 +2770,13 @@ explain select * from student where a > 86 and b = 88 and c = 90;
 explain select * from student where a > 86 and b > 88 and c = 90;
 ```
 
-![image-20220305145426515](D:\Program Files (x86)\Typora\images\java面试指南\image-20220305145426515.png) 
+![image-20220305145426515](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220309181053.png) 
 
-![image-20220305145634275](D:\Program Files (x86)\Typora\images\java面试指南\image-20220305145634275.png) 
+![image-20220305145634275](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220309181058.png) 
 
-![image-20220305145923619](D:\Program Files (x86)\Typora\images\java面试指南\image-20220305145923619.png) 
+![image-20220305145923619](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220309181103.png) 
 
-![image-20220305150047668](D:\Program Files (x86)\Typora\images\java面试指南\image-20220305150047668.png) 
+![image-20220305150047668](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220309181108.png) 
 
 ###### 5.5.3.3 联合索引中使用到like时
 
@@ -2799,9 +2799,9 @@ explain select * from student where a = '86' and b like '%8' and c > '90';
 explain select * from student where a = '86' and b like '8%' and c = '90';
 ```
 
-![image-20220305173825957](D:\Program Files (x86)\Typora\images\java面试指南\image-20220305173825957.png) 
+![image-20220305173825957](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220309181113.png) 
 
-![image-20220305173953113](D:\Program Files (x86)\Typora\images\java面试指南\image-20220305173953113.png) 
+![image-20220305173953113](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220309181119.png) 
 
 > **说明**：如果我们不知道联合索引中具体哪些字段用到了索引的话，可以通过执行计划的`key_len`列的值进行估算。因为该列的值用于表示索引里使用的字节数，值越大肯定说明联合索引中用到索引的字段越多。像上面`key_len`列一共出现过99、198、297这三个值，这就对应着联合索引中一个字段用到了索引、两个字段用到了索引、三个字段用到了索引。
 
@@ -3244,10 +3244,17 @@ Redis的数据结构及使用场景如下：
 
 对于设置了过期时间的key在某些时间点被超高并发访问，说明它是一种非常"热点"的数据。如果这个key在大量请求同时进来前正好失效了，那么所有针对这个key的操作都会落到数据库上，就会出现持久层负载过大甚至奔溃的情况，这种情况被称为**缓存击穿**。
 
-对于缓存击穿的情况，业界一般有两种解决办法：
+对于缓存击穿的情况，业界一般有三种解决办法：
 
 - `设置value永不过期`：这种方式可以说是最可靠、最安全的，但是占空间，内存消耗大，并且不能保持数据最新，所以这种方案需要考虑到具体的业务逻辑。
-- `使用互斥锁(mutex key)`：这种方式的实现思路就是，在缓存失效的时候(即根据key获取的值为空)不是立即去查数据库，而是先使用缓存的类似setnx命令去set一个mutex key，设置成功再查询数据库，然后将查询的结果设置到缓存中去。这里的setnx就起到了互斥锁的作用，相当于大量并发请求只让一个请求去查数据库，其他请求等待。查到后将数据设置到缓存中并释放锁即可，这样其他请求就可以从缓存中获取到数据了，就不用再去查数据库了。
+- `使用互斥锁(mutex key)`：这种方式的实现思路就是，在缓存失效的时候(即根据key获取的值为空)不是立即去查数据库，而是先使用缓存的类似setnx命令去set一个mutex key，设置成功再查询数据库，然后将查询的结果设置到缓存中去。这里的setnx就起到了互斥锁的作用，相当于大量并发请求只让一个请求去查数据库，其他请求等待。查到后将数据设置到缓存中并释放锁即可，这样其他请求就可以从缓存中获取到数据了，就不用再去查数据库了；
+- `逻辑过期`：使用逻辑过期的意思就是，不在redis层面针对key值设置过期时间，而是在代码层面设置一个逻辑的过期时间。在重建缓存数据时，如果有别的请求过来，不是阻塞等待，而是直接返回逻辑过期的数据。
+
+![image-20220308171417604](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220309180943.png)  
+
+使用`互斥锁`和`逻辑过期`这两种方式的优缺点对比如下所示：
+
+![image-20220308171341079](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220309180949.png) 
 
 ##### 7.5.3 缓存的雪崩
 
@@ -3258,9 +3265,54 @@ Redis的数据结构及使用场景如下：
 - 如果是redis服务不可用导致的雪崩情况，可以采用redis集群方式解决，避免由于单机出现问题导致整个缓存服务都没办法使用的情况；
 - 如果是由于缓存大面积失效导致的雪崩，可以使用随机数作为缓存的过期时间，以避免大量key同时过期的情况。
 
-#### 7.6 Redis的持久化
+#### 7.6 缓存的数据一致性
 
-##### 7.6.1 RDB持久化
+首先需要清楚两点，经常修改的数据是不适合使用缓存的，有强一致性要求的数据是不适合使用缓存的。
+
+在清楚了以上两点后，下面就说说对于redis和mysql中数据不一致的情况的解决办法。对于这种数据一致性问题，业界是有相应解决方案的，比如**延迟双删**、**双写模式**、**失效模式**等。这里就着重介绍下`失效模式`。
+
+操作缓存和数据库时，有三个问题需要考虑：
+
+1. 删除缓存还是更新缓存？
+   - `更新缓存`：每次更新数据库都要更新缓存，这种对缓存的无效写操作较多，缓存其实只在乎最新的一次结果；![image-20220309181605161](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220309181615.png)
+   - `删除缓存`：更新数据库时让缓存失效，然后当下次有查询请求过来时，再将数据库最新数据更新到缓存里面。![image-20220309181526425](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220309181620.png)
+2. 如何保证缓存与数据库操作的原子性？
+   - 对于单体系统，可以将缓存与数据库操作放在同一个事务里面；
+   - 对于分布式系统，可以使用Seata等分布式事务解决方案。
+3. 先操作缓存还是先操作数据库？
+   - 先删除缓存，再操作数据库；![image-20220309181556664](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220309181615.png)
+   - 先操作数据库，再删除缓存。![image-20220309181516197](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220309181620.png)
+
+我们这里要介绍的`失效模式，其实就是先操作数据库，再删除缓存`的思想。下面针对先删缓存再操作数据库以及先操作数据库再删缓存的优劣势做一个对比。
+
+**无线程插队场景下两种方式对比：**
+
+<img src="https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220309180954.png" alt="image-20220309164751900" style="zoom: 70%;" /> 
+
+**有线程插队场景下两种方式对比：**
+
+<img src="https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220309181001.png" alt="image-20220309172309018" style="zoom:70%;" />  
+
+**最终结论：**
+
+- 无线程插队场景下两种方式都可以，都能实现最终效果，看不出优劣区别；
+- 在有线程插队时，两种方式都有可能出现线程安全问题；
+- 先删缓存再操作数据库的方式发生线程安全问题的概率较高，因为删缓存很快，但是更新数据库的操作是较慢的，所以很容易在删除缓存后还没来得及更新数据库时被别的线程插队。插队的线程主要是查询数据库和写缓存，这两步操作也很快，所以就很容易出现缓存中写入老数据后，数据库又更新的情况，这就产生了不一致的问题；
+- 先操作数据库再删缓存的方案，发生线程安全问题的概率是极低的，如上图右侧流程所示，线程1写入缓存的操作其实是很快的，不太可能在写入前被线程2插队，更何况线程2中还有较耗时的更新数据库的操作在，所以在都不加锁的情况下，还是先操作数据库再删缓存的方案最优。
+
+对于`先操作数据库，再删除缓存`的方案，还可能出现下面这种场景：
+
+<img src="https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220309181007.png" alt="image-20220309175330213" style="zoom:70%;" /> 
+
+这种场景属于更新数据库时，耗时较长，被另一个线程2插队了。假设线程2过来时缓存正好失效了，就会去查数据库，然后查询到了数据库中的老数据。假设这时候又轮到线程1执行了，线程1就会去删缓存，不过这时缓存中已经没数据了，所以删不删都一样，然后又轮到线程2执行了，最后线程2就又把之前查询到的老数据写入到了缓存中，这就出现了缓存和数据库不一致的情况。
+
+针对以上场景出现的问题，可以使用==读写锁==进行解决。把线程1更新数据库和删缓存的两个操作锁起来，执行过程中不让别的线程插队。读写锁的好处就是，有写操作的时候，读等待；没有写操作的时候，相当于没加锁，相对来说性能更高。
+
+> **说明**：我们也可以使用阿里的开源框架[canal](https://github.com/alibaba/canal)来解决缓存和数据库中数据不一致的问题。
+
+#### 7.7 Redis的持久化
+
+##### 7.7.1 RDB持久化
 
 RDB全称是Redis Database Backup file(Redis数据备份文件)，也被叫做Redis数据快照。简单来说就是把内存中的所有数据都记录到磁盘中。当Redis实例故障重启后，从磁盘读取快照文件，恢复数据。快照文件称为RDB文件，默认是保存在当前运行目录。
 
@@ -3295,7 +3347,7 @@ fork采用的是copy-on-write技术：
   - RDB执行间隔时间长，两次RDB之间写入数据有丢失的风险；
   - RDB是通过fork子进程来协助完成数据持久化工作的，当数据集较大时，fork子进程、压缩、写出RDB文件这一系列流程是比较耗时的。
 
-##### 7.6.2 AOF持久化
+##### 7.7.2 AOF持久化
 
 AOF全称为Append Only File(追加文件)。redis处理的每一个写命令都会记录在AOF文件，所以AOF文件其实是记录命令的，因此可以看做是一个命令日志文件。
 
@@ -3323,13 +3375,13 @@ AOF和RDB是各有优缺点的，它们的主要区别如下：
 
 > **说明**：使用AOF方式最大的好处就是能够较好地保证数据的完整性，其实在实际场景中，RDB和AOF这两种方式一般是会被结合起来使用的。
 
-#### 7.7 Redis的集群搭建
+#### 7.8 Redis的集群搭建
 
 Redis集群的搭建主要包含三种方式，分别是`Redis主从集群`、`Redis哨兵集群`、`Redis分片集群`。
 
-##### 7.7.1 Redis主从集群
+##### 7.8.1 Redis主从集群
 
-###### 7.7.1.1 主从集群架构
+###### 7.8.1.1 主从集群架构
 
 Redis的主从集群基础架构如下所示：
 
@@ -3341,7 +3393,7 @@ Redis的主从集群基础架构如下所示：
 
 ![image-20220122204540810](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220122225119.png) 
 
-###### 7.7.1.2 主从数据同步原理
+###### 7.8.1.2 主从数据同步原理
 
 主从节点之间的数据同步主要包括`全量同步`和`增量同步`。主从第一次同步就是全量同步，流程如下所示：
 
@@ -3385,9 +3437,9 @@ master如何判断slave是不是第一次来同步数据，这里主要是用到
 
 - slave节点断开又恢复，并且在repl_baklog中能找到offset时。
 
-##### 7.7.2 Redis哨兵集群
+##### 7.8.2 Redis哨兵集群
 
-###### 7.7.2.1 哨兵的结构和作用
+###### 7.8.2.1 哨兵的结构和作用
 
 Redis提供了哨兵(Sentinel)机制来实现主从集群的自动故障恢复。哨兵的结构和作用如下：
 
@@ -3399,7 +3451,7 @@ Redis提供了哨兵(Sentinel)机制来实现主从集群的自动故障恢复�
 
 > **说明**：Redis的哨兵机制本身也是一个集群，不然如果自己本身出现了故障，就无法起到监测集群的作用了。
 
-###### 7.7.2.2 哨兵的服务状态监测
+###### 7.8.2.2 哨兵的服务状态监测
 
 Sentinel哨兵基于心跳机制监测服务状态，每隔1秒会向集群的每个实例发送ping命令：
 
@@ -3410,7 +3462,7 @@ Sentinel哨兵基于心跳机制监测服务状态，每隔1秒会向集群的�
 
 > **说明**：如上图所示，当三个Sentinel实例中有两个都认为master实例主观下线，则该master实例客观下线，这时就会选举新的master节点。
 
-###### 7.7.2.3 master的选举依据
+###### 7.8.2.3 master的选举依据
 
 一旦发现master故障，sentinel就需要在salve中选择一个作为新的master，选举的依据如下：
 
@@ -3419,7 +3471,7 @@ Sentinel哨兵基于心跳机制监测服务状态，每隔1秒会向集群的�
 3. 如果slave-prority值一样，则判断slave节点的offset值，越大说明数据越新，优先级越高；
 4. 如果offset值也一样，说明选哪个slave都一样，那么就会随机选择一个slave。这里在随机选择时，是根据slave节点的运行id大小做判断的，越小优先级越高。
 
-###### 7.7.2.4 实现故障转移的步骤
+###### 7.8.2.4 实现故障转移的步骤
 
 当选中了其中一个slave为新的master后，实现故障转移的步骤如下：
 
@@ -3427,7 +3479,7 @@ Sentinel哨兵基于心跳机制监测服务状态，每隔1秒会向集群的�
 - 然后会给所有其他的slave节点发送`slaveof 新master的ip 新master的端口`命令，让这些slave成为新master的从节点，并开始从新的master节点上同步数据；
 - 最后，Sentinel会将故障节点标记为slave节点，当故障节点恢复后会自动成为新master节点的slave节点。
 
-###### 7.7.2.5 RedisTemplate的哨兵模式
+###### 7.8.2.5 RedisTemplate的哨兵模式
 
 在Sentinel集群监管下的Redis主从集群，其节点会因为自动故障转移而发生变化，Redis的客户端必须要能感知到这种变化，并及时更新连接信息。Spring的RedisTemplate底层利用lettuce实现了节点的感知和自动切换。
 
@@ -3464,11 +3516,11 @@ public LettuceClientConfigurationBuilderCustomizer configurationBuilderCustomize
 
 > **说明**：Redis集群一般都是读写分离，master节点用于接收写操作，slave节点则用于接收读操作。所以在配置读取策略时，一般都是优先去slave节点读取数据以减轻master节点的压力。
 
-##### 7.7.3 Redis分片集群
+##### 7.8.3 Redis分片集群
 
 使用Redis的分片集群将不再需要哨兵机制，因为其本身已经具备了哨兵机制的所有功能。
 
-###### 7.7.3.1 分片集群的结构
+###### 7.8.3.1 分片集群的结构
 
 主从集群和哨兵集群可以解决高可用、高并发读的问题。但是依然会存在以下两个问题：
 
@@ -3484,7 +3536,7 @@ public LettuceClientConfigurationBuilderCustomizer configurationBuilderCustomize
 
 <img src="https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220123223212.png" alt="image-20220123214657462" style="zoom:84%;" /> 
 
-###### 7.7.3.2 分片集群的散列插槽
+###### 7.8.3.2 分片集群的散列插槽
 
 Redis会把每一个master节点映射到0~16383共**16384**个插槽(hash slot)上，查看集群信息时就能看到，比如：
 
@@ -3497,7 +3549,7 @@ Redis会把每一个master节点映射到0~16383共**16384**个插槽(hash slot)
 
 > **说明**：计算插槽的方式是根据key的有效部分通过CRC16算法先得到一个hash值，然后对16384取余，余数将会被作为插槽。每个redis节点都会有一个插槽范围，插槽在这个范围内，对应的key就会被存到这个实例上。
 
-###### 7.7.3.3 分片集群的故障转移
+###### 7.8.3.3 分片集群的故障转移
 
 在redis的分片集群中，也是可以实现自动故障转移的，如果有一个master节点宕机了，会有如下现象：
 
@@ -3521,7 +3573,7 @@ Redis会把每一个master节点映射到0~16383共**16384**个插槽(hash slot)
 - `force`：这种模式省略了对offset的一致性校验；
 - `takeover`：相当于直接执行上图的第5步，忽略数据一致性、忽略master状态和其它master的意见。
 
-###### 7.7.3.4 RedisTemplate访问分片集群
+###### 7.8.3.4 RedisTemplate访问分片集群
 
 RedisTemplate底层同样基于lettuce实现了分片集群的支持，使用的步骤与哨兵模式基本一致。与哨兵模式相比，其中只有分片集群的配置方式略有差异，分片集群在application.yml中的配置如下：
 
@@ -3540,7 +3592,9 @@ spring:
 
 > **说明**：分片集群中的每一个节点都是实际使用的redis的节点，所以在配置的时候直接配置redis的节点信息即可，而不是像哨兵集群那样配置哨兵集群的节点信息。
 
-#### 7.8 Redis的分布式锁
+#### 7.9 Redis的分布式锁
+
+##### 7.9.1 使用setnx命令实现
 
 像`synchronized`这种本地锁对于单体实例是有效果的，但是对于分布式场景，服务是会进行拆分的，而且我们的应用实例也会有多个，这时再使用本地锁就无法锁住整个服务了，顶多就是锁住服务的一个实例而已，所以就出现了分布式锁，而使用redis就可以实现分布式锁的效果。
 
@@ -3588,11 +3642,385 @@ public class TestLock {
 
 ![image-20220124165917977](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220124193743.png) 
 
-> **说明**：以上代码中的Lua脚本是直接从redis官网粘贴过来的，我们也可以直接到[官网](https://redis.io/commands/set)中进行查看。其实针对redis的分布式锁有一个专门的[Redisson](https://github.com/redisson/redisson/wiki/8.-%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E5%92%8C%E5%90%8C%E6%AD%A5%E5%99%A8)框架，我们也可以通过这个框架实现分布式锁的效果。
+> **说明**：以上代码中的Lua脚本是直接从redis官网粘贴过来的，我们也可以直接到[官网](https://redis.io/commands/set)中进行查看。
 
-#### 7.9 缓存过期策略和淘汰算法
+##### 7.9.2 使用Redisson框架实现
 
-##### 7.9.1 缓存过期策略
+基于setnx命令实现的分布式锁存在下面的问题：
+
+![image-20220318113812928](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220318113817.png)  
+
+为了解决以上存在的问题，就出现了[Redisson](https://github.com/redisson/redisson/wiki/8.-%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E5%92%8C%E5%90%8C%E6%AD%A5%E5%99%A8)框架。在该框架中，包含了很多分布式锁的实现。
+
+Redisson分布式锁的基本使用如下所示：
+
+1. 引入Redisson相关依赖：
+
+   ```xml
+   <dependency>
+       <groupId>org.redisson</groupId>
+       <artifactId>redisson</artifactId>
+       <version>3.13.6</version>
+   </dependency>
+   ```
+
+2. 注入RedissonClient客户端：
+
+   ```java
+   @Configuration
+   public class RedissonConfig {
+   
+       @Bean
+       public RedissonClient redissonClient() {
+           Config config = new Config();
+           // 这里是设置redis的地址和端口，如果redis有密码的话，还可以继续调用setPassword方法
+           config.useSingleServer().setAddress("redis://localhost:6379");
+           return Redisson.create(config);
+       }
+   }
+   ```
+
+3. 使用Redisson框架：
+
+   ```java
+   @Slf4j
+   @SpringBootTest
+   public class RedissonTest {
+   
+       @Autowired
+       private RedissonClient redissonClient;
+   
+       @Test
+       public void testRedisson() throws InterruptedException {
+           // 获取锁(可重入)，指定锁的名称
+           RLock lock = redissonClient.getLock("anylock");
+           // 尝试获取锁，参数分别是：获取锁的最大等待时间(期间会重试)，锁自动释放时间，时间单位
+           boolean isLock = lock.tryLock(1, 10, TimeUnit.SECONDS);
+           // 判断锁是否获取成功，true表示获取成功
+           if (isLock) {
+               try {
+                   log.info("获取锁成功，执行业务");
+               }finally {
+                   log.info("释放锁...");
+                   // 手动释放锁
+                   lock.unlock();
+               }
+           }
+       }
+   } 
+   ```
+
+###### 7.9.2.1 可重入锁的实现
+
+通过以下代码解释Redisson可重入锁的原理，代码如下：
+
+```java
+RLock lock = redissonClient.getLock("anylock");
+
+@Test
+public void testReentrantLock(){
+    boolean isLock = lock.tryLock();
+    if (!isLock) {
+        log.error("获取锁失败，1");
+        return;
+    }
+    try {
+        log.info("获取锁成功，1");
+        method();
+    }finally {
+        log.info("释放锁，1");
+        lock.unlock();
+    }
+}
+
+public void method(){
+    boolean isLock = lock.tryLock();
+    if (!isLock) {
+        log.error("获取锁失败，2");
+        return;
+    }
+    try {
+        log.info("获取锁成功，2");
+    }finally {
+        log.info("释放锁，2");
+        lock.unlock();
+    }
+}
+```
+
+**解释说明：**
+
+- 对于可重入锁的实现，Redisson底层其实使用的是hash结构，即`key1:(key2:value)`这种结构；
+- 运行上面的`testReentrantLock()`方法后，第一次执行`lock.tryLock()`会获取锁，然后`key1:(key2:value)`这种结构中的value值会==+1==；
+- 下面会调用`method()`方法，该方法中也会执行`lock.tryLock()`获取锁，这时候会判断一下，这个锁是不是已经有人获取到了，如果锁已经被占用，也不会立刻失败，而是继续判断是不是自己这个线程获取到的这个锁。如果不是，则获取锁失败；如果是，则获取锁成功，并且value值再==+1==，这个就是锁的重入；
+- 由于执行`testReentrantLock()`方法和`method()`方法的是一个线程，所以当`method()`方法中的`lock.tryLock()`执行完后，value就变成2了，等执行完`method()`方法中的`lock.unlock()`代码后，并不会直接释放锁，而是value值==-1==，然后在执行完`testReentrantLock()`方法的`lock.unlock()`代码后，value值又==-1==，就变成0了，这时候锁才会被释放。
+
+###### 7.9.2.2 重试机制和自动续期
+
+上面Redisson的可重入锁功能解决了redis分布式锁不可重入的问题，这里进一步分析Redisson的底层原理，看看其底层的`watchDog(看门狗)`机制是如何使用的，以及如何完成锁的重试和自动续期。完整流程图如下：
+
+![image-20220311151558067](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220318111233.png) 
+
+上面演示可重入锁时使用到了如下的代码来获取锁：
+
+```java
+RLock lock = redissonClient.getLock("anylock");
+boolean isLock = lock.tryLock();
+```
+
+上面的`lock.tryLock()`方法其实还有有参的方法，如下所示：
+
+```java
+public boolean tryLock(long waitTime, long leaseTime, TimeUnit unit) {
+    ...
+}
+```
+
+- ==waitTime==：表示获取锁的最大等待时长，一旦设置了这个参数，那么在第一次获取锁失败后并不会立即返回，而是在这个等待时间内不断重试，超过最大等待时长后还是没获取到锁，就会返回false并以获取锁失败告终；
+- ==leaseTime==：表示锁自动失效释放的时间，不传的话，会使用看门狗的默认超时时间(30s)；
+- ==unit==：这个是时间单位。
+
+为了研究底层锁的重试机制，所以waitTime是一定要传值的，leaseTime不传也没事，会使用默认值。假设我们设置锁的最大等待时长为一秒，代码则如下所示：
+
+```java
+RLock lock = redissonClient.getLock("anylock");
+boolean isLock = lock.tryLock(1L, TimeUnit.SECONDS);
+```
+
+下面我们跟到`tryLock(1L, TimeUnit.SECONDS)`方法里面看一下，如下所示：
+
+![image-20220315175520186](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220318111249.png) 
+
+![image-20220315175950770](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220318111255.png) 
+
+![image-20220315180257162](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220318111300.png) 
+
+![image-20220315180346994](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220318111306.png) 
+
+![image-20220315181354657](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220318111312.png) 
+
+![image-20220317164730464](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220318111319.png) 
+
+这一步的返回结果会一直传递出去，这一步的返回结果就是上面截图中第三步的返回结果。为了得知这一步的返回结果会被用来做什么，我们继续研究上面第三步中相关的代码，涉及到的完整代码如下：
+
+```java
+@Override
+public boolean tryLock(long waitTime, long leaseTime, TimeUnit unit) throws InterruptedException {
+    long time = unit.toMillis(waitTime);
+    long current = System.currentTimeMillis();
+    long threadId = Thread.currentThread().getId();
+    // 这里的ttl就是上面lua脚本的返回结果，结果为null表示获取锁成功，否则为锁自动失效释放的时间
+    Long ttl = tryAcquire(waitTime, leaseTime, unit, threadId);
+    // ttl为null说明已经获取到锁了，直接返回true
+    if (ttl == null) {
+        return true;
+    }
+    // 走到这里说明锁获取失败了，然后这里是做一个时间计算，看看目前达到锁的最大等待时长没
+    time -= System.currentTimeMillis() - current;
+    // 如果已经达到了，就不会再重试了，直接返回false，表示获取锁失败
+    if (time <= 0) {
+        acquireFailed(waitTime, unit, threadId);
+        return false;
+    }
+    
+    current = System.currentTimeMillis();
+    // 走到这里说明还没达到锁的最大等待时长，但也不是立即就重新尝试获取锁，锁释放的逻辑中，在锁释放后会发送一个信号，这里就是订阅锁释放的信号
+    RFuture<RedissonLockEntry> subscribeFuture = subscribe(threadId);
+    if (!subscribeFuture.await(time, TimeUnit.MILLISECONDS)) {
+        if (!subscribeFuture.cancel(false)) {
+            subscribeFuture.onComplete((res, e) -> {
+                if (e == null) {
+                    unsubscribe(subscribeFuture, threadId);
+                }
+            });
+        }
+        acquireFailed(waitTime, unit, threadId);
+        return false;
+    }
+
+    try {
+        // 走到这里说明可以重新尝试获取锁了，这里又进行了一次时间计算，看看目前达到锁的最大等待时长没
+        time -= System.currentTimeMillis() - current;
+        if (time <= 0) {
+            acquireFailed(waitTime, unit, threadId);
+            return false;
+        }
+    
+        while (true) {
+            long currentTime = System.currentTimeMillis();
+            // 这一步就是重新尝试获取锁，重试就是调用tryAcquire方法，返回为null就说明成功获取到锁
+            ttl = tryAcquire(waitTime, leaseTime, unit, threadId);
+            // lock acquired
+            if (ttl == null) {
+                return true;
+            }
+
+            time -= System.currentTimeMillis() - currentTime;
+            if (time <= 0) {
+                acquireFailed(waitTime, unit, threadId);
+                return false;
+            }
+
+            // waiting for message
+            currentTime = System.currentTimeMillis();
+            if (ttl >= 0 && ttl < time) {
+                subscribeFuture.getNow().getLatch().tryAcquire(ttl, TimeUnit.MILLISECONDS);
+            } else {
+                subscribeFuture.getNow().getLatch().tryAcquire(time, TimeUnit.MILLISECONDS);
+            }
+
+            time -= System.currentTimeMillis() - currentTime;
+            if (time <= 0) {
+                acquireFailed(waitTime, unit, threadId);
+                return false;
+            }
+        }
+    } finally {
+        unsubscribe(subscribeFuture, threadId);
+    }
+//        return get(tryLockAsync(waitTime, leaseTime, unit));
+}
+```
+
+> **说明**：以上逻辑就是Redisson中获取锁的==重试机制==，下面继续讲解锁的自动续期。
+
+我们接着上面截图的第五步来分析，对应的代码如下所示：
+
+![image-20220317173651820](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220318111337.png) 
+
+进入到scheduleExpirationRenewal方法中后，内容如下所示：
+
+![image-20220317202516979](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220318111343.png) 
+
+可以发现，这里用到了ConcurrentMap的putIfAbsent方法。这个方法的意思是，如何对应的key已经在集合中，则返回这个key对应的value值；如果不在，则返回null。使用这个方法也可以解决锁的重入问题，针对同一个线程，不管这把锁被重入几次，将来拿到的value都是同一个entry。如果是第一次来，集合中肯定没有相关信息，就会返回null，那么业务逻辑就会走到else中，就会执行里面的`renewExpiration()`方法，我们再进到这个方法中看下：
+
+![image-20220317212131161](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220318111354.png) 
+
+为了详细了解以上TimerTask任务的run方法中到底干了啥，下面来研究下run方法中的内容：
+
+![image-20220317213316787](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220318111404.png) 
+
+继续跟到`renewExpirationAsync()`方法中，查看里面具体的业务逻辑：
+
+![image-20220317213843811](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220318111410.png) 
+
+到目前为止，逻辑就清晰了，`renewExpirationAsync()`方法会重置锁的有效期，该方法是在`renewExpiration()`方法创建的TimerTask任务中执行的，而且该任务是10秒(internalLockLeaseTime/3)执行一次，执行完后又会去递归调用`renewExpiration()`方法，然后又会去执行TimerTask任务。这样就实现了锁的==自动续期==，即每过10秒就会把锁的有效期重置成30秒。
+
+但是一直续期，什么时候才能结束呢？是在代码中执行`lock.unlock()`方法释放锁的时候。跟进代码里面最终可以看到会调用如下方法，该方法就是用于取消自动续期的。
+
+![image-20220317215407439](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220318111417.png) 
+
+> **注意**：如果我们直接调用的RedissonLock类的`tryLock(long, long, java.util.concurrent.TimeUnit)`方法的话，相当于是自己指定了锁自动失效释放的时间(leaseTime)，这样的话，锁就不会再进行自动续期了。
+
+###### 7.9.2.3 解决主从一致性问题
+
+生产环境上的redis一般都是以集群方式部署的，如果使用setnx命令实现分布式锁的话，万一主从同步时存在延迟，当主节点宕机时，假设从节点还未同步主节点中锁的数据信息，则会出现锁失效的问题。而Redisson就有针对这一问题的解决方案，这里就详细介绍下。
+
+针对主从一致性的问题，redisson是使用`联锁(MultiLock)`来解决的。使用联锁时，redis可以是不带从节点的单独的几个节点构成的集群，也可以是带有从节点的redis集群。
+
+如果是前者，那么联锁的原理就是，从redis集群中每个节点都获取到锁，才算真正获取到锁；如果是后者，就是从每个主节点都获取到锁，才算真正获取到锁。万一某个主节点宕机，其从节点升为主节点后，数据还没来得及同步过来导致锁信息丢失也没关系，因为线程过来获取锁的时候，只要在一个主节点没获取到锁，那最终就无法获取到锁，自然也不会出现多个线程获取到同一把锁的情况。针对带有主从的redis集群，获取锁时的模型如下：
+
+![image-20220318125318228](https://cdn.jsdelivr.net/gh/gongcqq/FigureBed@main/Image/Typora/20220318125453.png) 
+
+下面通过代码的方式演示下联锁的使用：
+
+首先创建客户端，这边使用两个独立的redis节点：
+
+```java
+package com.gsl.redisson.test;
+
+import org.redisson.Redisson;
+import org.redisson.api.RedissonClient;
+import org.redisson.config.Config;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+/**
+ * @Author: gongsl
+ * @Date: 2022-03-11 15:49
+ */
+@Configuration
+public class RedissonConfig {
+
+    @Bean
+    public RedissonClient redissonClient() {
+        Config config = new Config();
+        config.useSingleServer().setAddress("redis://localhost:6379");
+        return Redisson.create(config);
+    }
+
+    @Bean
+    public RedissonClient redissonClient2() {
+        Config config = new Config();
+        config.useSingleServer().setAddress("redis://192.168.68.10:6379");
+        return Redisson.create(config);
+    }
+}
+```
+
+然后直接进行使用：
+
+```java
+package com.gsl.redisson.test;
+
+import lombok.extern.slf4j.Slf4j;
+import org.redisson.RedissonMultiLock;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * @Author: gongsl
+ * @Date: 2022-03-18 10:27
+ */
+@Slf4j
+@RestController
+public class RedissonController {
+
+    @Autowired
+    private RedissonClient redissonClient;
+
+    @Autowired
+    private RedissonClient redissonClient2;
+
+    @GetMapping("/hello")
+    public String hello() throws InterruptedException {
+        RLock lock1 = redissonClient.getLock("anylock");
+        RLock lock2 = redissonClient2.getLock("anylock");
+        // 可以使用任意一个Client获取联锁，比如redissonClient或者redissonClient2
+//      RLock multiLock = redissonClient.getMultiLock(lock1, lock2);
+        // 也可以使用new关键字直接创建一个联锁
+        RLock multiLock = new RedissonMultiLock(lock1, lock2);
+        boolean isLock = multiLock.tryLock(1L, TimeUnit.SECONDS);
+        if (!isLock) {
+            log.error("获取锁失败...");
+            return "获取锁失败";
+        }
+        try {
+            log.info("获取锁成功...");
+            Thread.sleep(25000);
+            return "获取锁成功";
+        }finally {
+            log.info("释放锁...");
+            multiLock.unlock();
+        }
+    }
+}
+```
+
+###### 7.9.2.4 Redisson分布式锁总结
+
+- Redisson的可重入锁机制底层是利用了hash结构，记录线程标示和重入次数；
+- 利用看门狗等机制实现锁的自动续期；
+- 利用信号量等机制控制锁重试等待，避免无意义的重试导致的CPU资源的浪费；
+- 利用联锁解决主从一致性的问题，但是相对来说，联锁的运维成本也会较高且实现也较为复杂。
+
+#### 7.10 缓存过期策略和淘汰算法
+
+##### 7.10.1 缓存过期策略
 
 缓存过期策略一般有以下三种：
 
@@ -3602,7 +4030,7 @@ public class TestLock {
 
 > **说明**：Redis中同时使用了`惰性过期`和`定期过期`两种过期策略。**定时过期**策略用一个定时器来负责监视key，过期则自动删除，这种方式比较消耗CPU资源，因此Redis没有采用这一策略。
 
-##### 7.9.2 常见的缓存淘汰算法
+##### 7.10.2 常见的缓存淘汰算法
 
 常见的缓存淘汰算法主要有以下三种：
 
